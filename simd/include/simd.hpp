@@ -47,6 +47,9 @@ using m512 = uint32_t;
 using cx_float = std::complex<float>;
 
 void    print_reg(char const* name, uint32_t i);
+void    print_reg(char const* name, __m128d r);
+void    print_reg(char const* name, __m128  r);
+void    print_reg(char const* name, __m128i r);
 void    print_reg(char const* name, __m256d r);
 void    print_reg(char const* name, __m256  r);
 void    print_reg(char const* name, __m256i r);
@@ -652,7 +655,7 @@ sort_two_lanes_of_7(rf256 vals)
 }
 */
 
-void    median_of_7(float* pdst, float const* psrc, size_t const buf_len);
+void    avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len);
 
 }       //- simd namespace
 #endif  //- KEWB_SIMD_HPP_DEFINED

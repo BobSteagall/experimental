@@ -57,6 +57,35 @@ print_reg(char const* pname, uint32_t i);
 //------
 //
 void
+print_reg(char const* pname, rd_128 r)
+{
+    double  vals[2];
+
+    _mm_storeu_pd(&vals[0], r);
+    print_vals(pname, vals, 2);
+}
+
+void
+print_reg(char const* pname, rf_128 r)
+{
+    float   vals[4];
+
+    _mm_storeu_ps(&vals[0], r);
+    print_vals(pname, vals, 4);
+}
+
+void
+print_reg(char const* pname, ri_128 r)
+{
+    int32_t vals[4];
+
+    _mm_storeu_epi32(&vals[0], r);
+    print_vals(pname, vals, 4);
+}
+
+//------
+//
+void
 print_reg(char const* pname, rd256 r)
 {
     double  vals[4];
@@ -142,7 +171,7 @@ print_mask(char const* pname, __m256i mask, int)
 
 
 void
-median_of_7(float* pdst, float const* psrc, size_t const buf_len)
+avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
 {
     __m512      prev;   //- Bottom of the input data window
     __m512      curr;   //- Middle of the input data window

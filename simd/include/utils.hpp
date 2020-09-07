@@ -41,6 +41,12 @@ class stopwatch
     {}
 
     int64_t
+    nanoseconds_elapsed() const
+    {
+        return static_cast<int64_t>(std::chrono::duration_cast<nsecs>(m_stop - m_start).count());
+    }
+
+    int64_t
     microseconds_elapsed() const
     {
         return static_cast<int64_t>(std::chrono::duration_cast<usecs>(m_stop - m_start).count());
@@ -73,6 +79,7 @@ class stopwatch
   private:
     using clock_type = std::chrono::system_clock;
     using time_point = std::chrono::time_point<clock_type>;
+    using nsecs      = std::chrono::nanoseconds;
     using usecs      = std::chrono::microseconds;
     using msecs      = std::chrono::milliseconds;
     using secs       = std::chrono::seconds;

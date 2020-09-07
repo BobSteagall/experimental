@@ -18,7 +18,8 @@ namespace {
     std::vector<float>  random_values;
     std::mt19937        rgen(19690720);
 
-    bool const  do_print = false;
+    bool const  do_print  = false;
+    int const   time_reps = 100;
 }
 
 void
@@ -69,6 +70,14 @@ tf01()
 
     rf512   r4 = sort_two_lanes_of_7(r2);
 //    PRINT_REG(r4);
+
+    __m128i     chunk;
+
+    chunk = _mm_setr_epi32(1, 2, 3, 4);
+    PRINT_REG(chunk);
+    chunk = _mm_shuffle_epi32(chunk, _MM_SHUFFLE(1, 0, 3, 2));
+    PRINT_REG(chunk);
+
 }
 
 void
@@ -150,7 +159,7 @@ tf03()
 }
 
 void
-simple_median_of_7(std::vector<float>& vdst, std::vector<float> const& vsrc)
+stl_median_of_7(std::vector<float>& vdst, std::vector<float> const& vsrc)
 {
     float   tmp[7];
     size_t  ilast = vsrc.size();
@@ -201,132 +210,12 @@ simple_median_of_7(std::vector<float>& vdst, std::vector<float> const& vsrc)
 
 
 void
-x_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
-{
-    __m512      prev;   //- Bottom of the input data window
-    __m512      curr;   //- Middle of the input data window
-    __m512      next;   //- Top of the input data window
-    __m512      lo;     //- Primary work register
-    __m512      hi;     //- Upper work data register; feeds values into the top of 'lo'
-    __m512      data;   //- Holds output prior to store operation
-    __m512      work;   //- Accumulator
-    m512        mask;   //- Trailing boundary mask
-
-    rf512 const     first = load_value(psrc[0]);
-    rf512 const     last  = load_value(psrc[buf_len - 1]);
-
-    //- This permutation specifies how to load the two lanes of 7.
-    //
-    ri512 const     load_perm = make_permute<0,1,2,3,4,5,6,7,1,2,3,4,5,6,7,8>();
-
-    //- This permutation specifies which elements to save.
-    //
-    ri512 const     save_perm = make_permute<3,11,3,11,3,11,3,11,3,11,3,11,3,11,3,11>();
-
-    //- This is a bitmask pattern for picking out adjacent elements.
-    //
-    constexpr m512  save = make_bitmask<1,1>();
-
-    //- This array of bitmasks specifies which pair of elements to blend into the result.
-    //
-    constexpr m512  save_mask[8] = {save << 0, save << 2,  save << 4,  save << 6,
-                                    save << 8, save << 10, save << 12, save << 14};
-
-    //- Preload the initial input data window; note the values in the register representing
-    //  data preceding the input array are equal to the first element.
-    //
-
-    if (buf_len < 16)
-    {
-        prev = first;
-        mask = ~(0xffffffff << buf_len);
-        curr = masked_load_from(psrc, last, mask);
-        next = last;
-
-        //- Init the work data register to the correct offset in the input data window.
-        //
-        lo = shift_up_with_carry<3>(prev, curr);
-        hi = shift_up_with_carry<3>(curr, next);
-
-        //- Perform two sorts at a time, in lanes of eight.
-        //
-        for (int i = 0;  i < 8;  ++i)
-        {
-            work = permute(lo, load_perm);
-            work = sort_two_lanes_of_7(work);
-            data = mask_permute(data, work, save_perm, save_mask[i]);
-            in_place_shift_down_with_carry<2>(lo, hi);
-        }
-
-        masked_store_to(pdst, data, mask);
-    }
-    else
-    {
-        size_t  read  = 0;
-        size_t  used  = 0;
-        size_t  wrote = 0;
-
-        curr  = first;
-        next  = load_from(psrc);
-        read += 16;
-        used += 16;
-
-        while (used < (buf_len + 16))
-        {
-            prev = curr;
-            curr = next;
-
-            if (read <= (buf_len - 16))
-            {
-                next  = load_from(psrc + read);
-                read += 16;
-            }
-            else
-            {
-                mask = ~(0xffffffff << (buf_len - read));
-                next = masked_load_from(psrc + read, last, mask);
-                read = buf_len;
-            }
-            used += 16;
-
-            //- Init the work data register to the correct offset in the input data window.
-            //
-            lo = shift_up_with_carry<3>(prev, curr);
-            hi = shift_up_with_carry<3>(curr, next);
-
-            //- Perform two sorts at a time, in lanes of eight.
-            //
-            for (int i = 0;  i < 8;  ++i)
-            {
-                work = permute(lo, load_perm);
-                work = sort_two_lanes_of_7(work);
-                data = mask_permute(data, work, save_perm, save_mask[i]);
-                in_place_shift_down_with_carry<2>(lo, hi);
-            }
-
-            if (wrote <= (buf_len - 16))
-            {
-                store_to_address(pdst + wrote, data);
-                wrote += 16;
-            }
-            else
-            {
-                mask = ~(0xffffffff << (buf_len - wrote));
-                masked_store_to(pdst + wrote, data, mask);
-                wrote = buf_len;
-            }
-        }
-    }
-}
-
-
-void
 tf04()
 {
     std::vector<float>  vsrc, vdst_avx, vdst_stl;
-    size_t              ncnt = 8;
+    size_t              ncnt = 7;
 
-    for (int i = 0;  i < 50;  ++i, ++ncnt)
+    for (int i = 0;  i < 121;  ++i, ++ncnt)
     {
         vsrc.resize(ncnt);
         vdst_stl.resize(ncnt+1);
@@ -340,12 +229,17 @@ tf04()
             vsrc[i] = i;
         }
 
-        simple_median_of_7(vdst_stl, vsrc);
-        x_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
+        stl_median_of_7(vdst_stl, vsrc);
+        avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
+
+        if (vdst_stl.back() != 99.0f)
+        {
+            printf("stl buffer overrun at size %ld\n", ncnt);
+        }
 
         if (vdst_avx.back() != 99.0f)
         {
-            printf("buffer overrun at size %ld\n", ncnt);
+            printf("avx buffer overrun at size %ld\n", ncnt);
         }
 
         for (size_t i = 0;  i < vsrc.size();  ++i)
@@ -360,51 +254,136 @@ tf04()
 }
 
 void
+median_rep_driver(std::vector<float> const& vsrc, size_t reps, char const* name)
+{
+    std::vector<float>  vdst_avx, vdst_stl;     //- destination arrays
+    stopwatch           sw;                     //- for timing
+    size_t const        ncnt = vsrc.size();     //- number of elements in source
+    size_t const        xmin = 100'000'000u;    //- min value of (reps * ncnt)
+    int64_t             npr;                    //- avg nanosecs per repetition
+    double              npe;                    //- avg nanosecs per element
+
+    //- Try to do enough reps for a reasonable amount of collection time.
+    //
+    if ((reps * ncnt) < xmin)
+    {
+        reps = xmin / ncnt;
+    }
+
+    //- Resize the destination arrays, make sure there's an extra element at the end of the
+    //  arrays to test for overruns.  Fill with flag values.
+    //
+    vdst_avx.resize(ncnt+1);
+    vdst_stl.resize(ncnt+1);
+    std::fill(std::begin(vdst_stl), std::end(vdst_stl), 99.0f);
+    std::fill(std::begin(vdst_avx), std::end(vdst_avx), 99.0f);
+
+    //- Compute the median using the simple STL-based algorithm.
+    //
+    sw.start();
+    for (size_t i = 0;  i < reps;  ++i)
+    {
+        stl_median_of_7(vdst_stl, vsrc);
+    }
+    sw.stop();
+    npr = sw.nanoseconds_elapsed()/reps;
+    npe = (double) npr / (double) ncnt;
+    printf("stl %s %8ld %9ld %8.3f\n", name, ncnt, npr, npe);
+
+    //- Compute the median using the AVX512-based algorithm.
+    //
+    sw.start();
+    for (size_t i = 0;  i < reps;  ++i)
+    {
+        avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
+    }
+    sw.stop();
+    npr = sw.nanoseconds_elapsed()/reps;
+    npe = (double) npr / (double) ncnt;
+    printf("avx %s %8ld %9ld %8.3f\n", name, ncnt, npr, npe);
+
+    //- Check for overruns.
+    //
+    if (vdst_stl.back() != 99.0f)
+    {
+        printf("stl buffer overrun at size %ld\n", ncnt);
+    }
+    if (vdst_avx.back() != 99.0f)
+    {
+        printf("avx buffer overrun at size %ld\n", ncnt);
+    }
+
+    //- Verify that the two algorithms give identical results.
+    //
+    for (size_t i = 0;  i < ncnt;  ++i)
+    {
+        if (vdst_avx[i] != vdst_stl[i])
+        {
+            printf("(%s)) diff at index %ld: vdst_avx = %.1f  vdst_stl = %.1f\n",
+                   name, i, vdst_avx[i], vdst_stl[i]);
+        }
+    }
+}
+
+void
 tf05()
 {
-//    return;
+    load_random_values();
+
+    std::vector<float>  vsrc;
+    size_t const        min_ncnt = 100u;
+    size_t const        max_ncnt = 10'000'000u;
+    int const           tmg_reps = 100;
+
+    for (size_t ncnt = min_ncnt;  ncnt <= max_ncnt;  ncnt *= 10)
+    {
+        vsrc.resize(ncnt);
+
+        for (size_t i = 0;  i < vsrc.size();  ++i)
+        {
+            vsrc[i] = i;
+        }
+        median_rep_driver(vsrc, tmg_reps, "sorted");
+    }
+
+    for (size_t ncnt = min_ncnt;  ncnt <= max_ncnt;  ncnt *= 10)
+    {
+        vsrc.resize(ncnt);
+
+        for (size_t i = 0;  i < vsrc.size();  ++i)
+        {
+            vsrc[i] = random_values[i];
+        }
+        median_rep_driver(vsrc, tmg_reps, "random");
+    }
+}
+
+/*
+void
+tf06()
+{
     load_random_values();
 
     std::vector<float>  vsrc, vdst_avx, vdst_stl;
     stopwatch           sw;
     size_t const        ncnt = 1048576;
-    int const           reps = 10;
+    int const           reps = 100;
 
     vsrc.resize(ncnt);
-    vdst_avx.resize(ncnt);
-    vdst_stl.resize(ncnt);
-
-    for (size_t i = 0;  i < vsrc.size();  ++i)
-    {
-        vsrc[i] = random_values[i];
-    }
-
-    sw.start();
-    for (int i = 0;  i < reps;  ++i)
-    {
-        simple_median_of_7(vdst_stl, vsrc);
-    }
-    sw.stop();
-    printf("simple median (random): %ld usec\n", sw.microseconds_elapsed()/reps);
-
-    sw.start();
-    for (int i = 0;  i < reps;  ++i)
-    {
-        x_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
-    }
-    sw.stop();
-    printf("avx512 median (random): %ld usec\n", sw.microseconds_elapsed()/reps);
-
+    vdst_avx.resize(ncnt+1);
+    vdst_stl.resize(ncnt+1);
 
     for (size_t i = 0;  i < vsrc.size();  ++i)
     {
         vsrc[i] = i;
     }
+    std::fill(std::begin(vdst_stl), std::end(vdst_stl), 99.0f);
+    std::fill(std::begin(vdst_avx), std::end(vdst_avx), 99.0f);
 
     sw.start();
     for (int i = 0;  i < reps;  ++i)
     {
-        simple_median_of_7(vdst_stl, vsrc);
+        stl_median_of_7(vdst_stl, vsrc);
     }
     sw.stop();
     printf("simple median (sorted): %ld usec\n", sw.microseconds_elapsed()/reps);
@@ -412,10 +391,43 @@ tf05()
     sw.start();
     for (int i = 0;  i < reps;  ++i)
     {
-        x_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
+        avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
     }
     sw.stop();
     printf("avx512 median (sorted): %ld usec\n", sw.microseconds_elapsed()/reps);
+
+    for (size_t i = 0;  i < vsrc.size();  ++i)
+    {
+        vsrc[i] = random_values[i];
+    }
+    std::fill(std::begin(vdst_stl), std::end(vdst_stl), 99.0f);
+    std::fill(std::begin(vdst_avx), std::end(vdst_avx), 99.0f);
+
+    sw.start();
+    for (int i = 0;  i < reps;  ++i)
+    {
+        stl_median_of_7(vdst_stl, vsrc);
+    }
+    sw.stop();
+    printf("simple median (random): %ld usec\n", sw.microseconds_elapsed()/reps);
+
+    sw.start();
+    for (int i = 0;  i < reps;  ++i)
+    {
+        avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
+    }
+    sw.stop();
+    printf("avx512 median (random): %ld usec\n", sw.microseconds_elapsed()/reps);
+
+    if (vdst_stl.back() != 99.0f)
+    {
+        printf("stl buffer overrun at size %ld\n", ncnt);
+    }
+
+    if (vdst_avx.back() != 99.0f)
+    {
+        printf("avx buffer overrun at size %ld\n", ncnt);
+    }
 
     for (size_t i = 0;  i < vsrc.size();  ++i)
     {
@@ -425,3 +437,4 @@ tf05()
         }
     }
 }
+*/

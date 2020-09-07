@@ -4,6 +4,9 @@
 
 int main()
 {
+    pin_thread();
+    load_random_values();
+
     tf01();
     tf02();
     tf03();

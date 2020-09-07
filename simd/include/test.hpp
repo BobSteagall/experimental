@@ -5,6 +5,7 @@
 #include "simd.hpp"
 
 void    pin_thread();
+void    load_random_values();
 
 void    tf01();
 void    tf02();
