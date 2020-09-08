@@ -94,7 +94,7 @@ rotate_up(__m512 r0)
     return rotate<R>(r0);
 }
 
-template<inte KernelSize, int KernelCenter>
+template<int KernelSize, int KernelCenter>
 void
 FastConvolve(float* pDst, float const* pKrnl, float, const* pSrc, size_t len)
 {
@@ -357,6 +357,41 @@ __m512
 mask_permute2(__m512 r0, __m512 r1, __m512i perm, uint32_t mask)
 {
     return _mm512_mask_permutex2var_ps(r0, (__mmask16) mask, perm, r1);
+}
+
+__m512
+sum_of_squares(__m512 r0, __m512 r1)
+{
+    return _mm512_add_ps(_mm512_mul_ps(r0, r0), _mm512_mul_ps(r1, r1));
+}
+
+__m512
+square_root(__m512 r0)
+{
+    return _mm512_sqrt_ps(r0);
+}
+
+void
+magn(float* pdst, cxfloat const* psrc, size_t count)
+{
+    __m512  lo, hi, real, imag, norm, magn;
+
+    for (auto pend = psrc + count;  psrc < pend;  psrc += 16, pdst += 16)
+    {
+        lo = load_from_address(psrc);
+        lo = permute<0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15>(lo);
+
+        hi = load_from_address(psrc + 8);
+        hi = permute<1,3,5,7,9,11,13,15,0,2,4,6,8,10,12,14>(hi);
+
+        real = blend(lo, hi, 0b1111'1111'0000'0000);
+        imag = blend(lo, hi, 0b0000'0000'1111'1111);
+        imag = permute<8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7>(imag);
+
+        norm = sum_of_squares(real, imag);
+        magn = square_root(norm);
+        store_to_address(pdst, magn);
+    }
 }
 
 template<int Width>

@@ -68,7 +68,7 @@ void    print_mask(char const* name, __m256i mask, int);
 KEWB_FORCE_INLINE __m512
 load_from_address(void const* psrc)
 {
-    return _mm512_load_ps(psrc);
+    return _mm512_loadu_ps(psrc);
 }
 
 KEWB_FORCE_INLINE r512d
@@ -365,14 +365,20 @@ shift_down_and_fill(__m512 r0, float fill)
     return blend(rotate_down<S>(r0), load_value(fill), shift_down_blend_mask<S>());
 }
 
+KEWB_FORCE_INLINE __m512
+fused_multiply_add(__m512 r0, __m512 r1, __m512 acc)
+{
+    return _mm512_fmadd_ps(r0, r1, acc);
+}
+
 
 template<int KernelSize, int KernelCenter>
 void
-FastConvolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
+avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
 {
     //- The convolution kernel must have non-negative size and fit with a single reister.
     //
-    static_assert(KernelSize > 1 && KernelSize <= 16);
+    static_assert(KernelSize > 1  &&  KernelSize <= 16);
 
     //- Thie index of the kernel center must be valid.
     //
@@ -388,9 +394,9 @@ FastConvolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
     __m512  next;   //- Top of the input data window
     __m512  lo;     //- Primary work data register, used to multiply kernel coefficients
     __m512  hi;     //- Upper work data register, supplies values to the top of 'lo'
-    __m512  sum;    //- Accumulated values register
+    __m512  sum;    //- Accumulated value
 
-    __m512  kcoeff[KernelSize];     //- Coefficients fot eh convolution kernel
+    __m512  kcoeff[KernelSize];     //- Coefficients of the convolution kernel
 
     //- Broadcast each kernel coefficient into its own register, to be used later in the FMA call.
     //
@@ -410,14 +416,14 @@ FastConvolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
     {
         sum = load_value(0.0f);
 
-        //- Init the word data registers to the correct offset in the input data window.
+        //- Init the work data registers to the correct offset in the input data window.
         //
         lo = shift_up_with_carry<windowCenter>(prev, curr);
         hi = shift_up_with_carry<windowCenter>(curr, next);
 
-        //- Slide the input data window upward by on register's work of values.  This
+        //- Slide the input data window upward by a register's work of values.  This
         //  could also be done at the bottom of the loop, but experimentation has shown
-        //  that sliding the window here results in slightly better performance.
+        //  that sliding the input data window here results in slightly better performance.
         //
         prev = curr;
         curr = next;
@@ -432,6 +438,7 @@ FastConvolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
         store_to_address(pDst, sum);
     }
 }
+
 
 KEWB_FORCE_INLINE __m512
 mask_permute(__m512 r0, __m512 r1, __m512i perm, uint32_t mask)
@@ -656,6 +663,7 @@ sort_two_lanes_of_7(rf256 vals)
 */
 
 void    avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len);
+void    avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psrc, size_t len);
 
 }       //- simd namespace
 #endif  //- KEWB_SIMD_HPP_DEFINED

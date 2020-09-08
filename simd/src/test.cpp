@@ -7,6 +7,10 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include <mkl.h>
+
+#define MKL_Complex8    std::complex<float>
+
 using namespace simd;
 using namespace std;
 
@@ -438,3 +442,197 @@ tf06()
     }
 }
 */
+
+void tf07()
+{
+    mkl_domain_set_num_threads(1, MKL_DOMAIN_VML);
+
+    int const       REPS = 100;
+    size_t const    len  = 100'000;
+
+    float           krnl[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    vector<float>   input(len), result1(len), result2(len);
+    MKL_INT const   dsize = (MKL_INT) len;
+    MKL_INT const   ksize = 15;
+    MKL_INT const   start = 7;
+    int             status;
+
+    VSLConvTaskPtr  ptask;
+    stopwatch       sw;
+    int64_t         mkl_time;
+    int64_t         avx_time;
+
+    for (size_t i = 0;  i < (len);  ++i)
+    {
+        input[i] = i + 1;
+    }
+    krnl[7] = 1.0f;
+
+    status = vslsConvNewTask1D(&ptask, VSL_CONV_MODE_DIRECT, ksize, dsize, dsize);
+    status = vslConvSetStart(ptask, &start);
+    status = vslsConvExec1D(ptask, krnl, 1, input.data(), 1, result1.data(), 1);
+
+    sw.start();
+    for (int i = 0;  i < REPS;  ++i)
+    {
+        status = vslsConvExec1D(ptask, krnl, 1, input.data(), 1, result1.data(), 1);
+
+    }
+    sw.stop();
+    mkl_time = sw.microseconds_elapsed()/REPS;
+
+    sw.start();
+    for (int i = 0;  i < REPS;  ++i)
+    {
+        avx_symm_convolve(result2.data(), krnl, ksize, input.data(), input.size());
+    }
+    sw.stop();
+    avx_time = sw.microseconds_elapsed()/REPS;
+
+    for (size_t i = 0;  i < (len - 16);  ++i)
+    {
+        if (result2[i] != result1[i])
+        {
+            printf("error at index %lu,  r1 = %.1f  r2 = %.1f\n", i, result1[i], result2[i]);
+        }
+    }
+
+    for (size_t i = 0;  i < 32u;  ++i)
+    {
+        printf("[%02lu] in = %.1f  r1 = %.1f  r2 = %.1f\n", i, input[i], result1[i], result2[i]);
+    }
+
+    printf("\nfor convolution with:\n");
+    printf("  n = %lu  k = %i   mkl = %ld  avx = %ld (usec)\n", len, ksize, mkl_time, avx_time);
+    printf("\n");
+}
+
+void
+conv_driver
+(float const* pkrnl, size_t klen, float const* psrc, size_t len, size_t reps, char const* name, vector<string>& results)
+{
+    vector<float>   result1(round_up(len, 16u)), result2(round_up(len, 16u));
+    MKL_INT const   dsize = (MKL_INT) len;
+    MKL_INT const   ksize = klen;
+    MKL_INT const   start = klen/2;
+    int             status;
+
+    VSLConvTaskPtr  ptask;
+    stopwatch       sw;
+    int64_t         mkl_time;
+    int64_t         avx_time;
+    double          speedup;
+    char            resbuf[256];
+
+    reps = 100'000'000/len;
+
+    status = vslsConvNewTask1D(&ptask, VSL_CONV_MODE_DIRECT, ksize, dsize, dsize);
+    status = vslConvSetStart(ptask, &start);
+    status = vslsConvExec1D(ptask, pkrnl, 1, psrc, 1, result1.data(), 1);
+
+    sw.start();
+    for (size_t i = 0;  i < reps;  ++i)
+    {
+        status = vslsConvExec1D(ptask, pkrnl, 1, psrc, 1, result1.data(), 1);
+
+    }
+    sw.stop();
+    mkl_time = sw.nanoseconds_elapsed()/reps;
+
+    vslConvDeleteTask(&ptask);
+
+    sw.start();
+    for (size_t i = 0;  i < reps;  ++i)
+    {
+        avx_symm_convolve(result2.data(), pkrnl, ksize, psrc, len);
+    }
+    sw.stop();
+    avx_time = sw.nanoseconds_elapsed()/reps;
+
+    for (size_t i = 0, err = 0;  i < (len - 16);  ++i)
+    {
+        if (result2[i] != result1[i])
+        {
+            printf("error k = %lu  idx = %lu,  r1 = %5.1f  r2 = %5.1f\n", klen, i, result1[i], result2[i]);
+            if (++err > 9) return;
+        }
+    }
+
+//    for (size_t i = 0;  i < 32u;  ++i)
+//    {
+//        printf("[%02lu] in = %5.1f  r1 = %5.1f  r2 = %5.1f\n", i, psrc[i], result1[i], result2[i]);
+//    }
+    speedup = (double) mkl_time / (double) avx_time;
+    printf("%s  n = %8lu  k = %2i  mkl = %9ld  avx = %8ld (ns)  s = %4.1f  r = %lu\n",
+           name, len, ksize, mkl_time, avx_time, speedup, reps);
+
+    sprintf(resbuf, "%s, %lu, %i, %ld, %ld, %.2f, %lu",
+            name, len, ksize, mkl_time, avx_time, speedup, reps);
+    results.push_back(std::string(resbuf));
+}
+
+
+void
+tf08()
+{
+    load_random_values();
+    mkl_domain_set_num_threads(1, MKL_DOMAIN_VML);
+
+    std::vector<float>  vsrc;
+    std::vector<float>  krnl;
+    std::vector<string> results;
+    size_t const        min_ncnt = 1000u;
+    size_t const        max_ncnt = 10'000'000u;
+    size_t const        tmg_reps = 1000;
+    size_t const        ramp_mod = 1000;
+
+    vsrc.reserve(max_ncnt);
+    krnl.reserve(16);
+
+    for (size_t klen = 5;  klen <= 15;  klen +=2)
+    {
+        krnl.resize(klen);
+
+        for (size_t ncnt = min_ncnt;  ncnt <= max_ncnt;  ncnt *= 10)
+        {
+            vsrc.resize(ncnt);
+
+            std::fill(krnl.begin(), krnl.end(), 0.0f);
+            krnl[klen/2] = 1.0;
+
+            for (size_t i = 0;  i < vsrc.size();  ++i)
+            {
+                vsrc[i] = i % ramp_mod;
+            }
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "del-ramped", results);
+
+            for (size_t i = 0;  i < vsrc.size();  ++i)
+            {
+                vsrc[i] = random_values[i];
+            }
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "del-random", results);
+
+            std::fill(krnl.begin(), krnl.end(), 1.0f);
+
+            for (size_t i = 0;  i < vsrc.size();  ++i)
+            {
+                vsrc[i] = i % ramp_mod;
+            }
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "sum-ramped", results);
+
+            for (size_t i = 0;  i < vsrc.size();  ++i)
+            {
+                vsrc[i] = random_values[i];
+            }
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "sum-random", results);
+        }
+        printf("\n");
+    }
+
+    printf("\nname, size, ksize, mkl, avx, speedup, reps\n");
+    for (auto const& e : results)
+    {
+        printf(e.c_str());
+        printf("\n");
+    }
+}
