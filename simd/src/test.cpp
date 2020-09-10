@@ -258,14 +258,17 @@ tf04()
 }
 
 void
-median_rep_driver(std::vector<float> const& vsrc, size_t reps, char const* name)
+median_rep_driver
+(vector<float> const& vsrc, size_t reps, char const* name, vector<string>& results)
 {
-    std::vector<float>  vdst_avx, vdst_stl;     //- destination arrays
-    stopwatch           sw;                     //- for timing
-    size_t const        ncnt = vsrc.size();     //- number of elements in source
-    size_t const        xmin = 100'000'000u;    //- min value of (reps * ncnt)
-    int64_t             npr;                    //- avg nanosecs per repetition
-    double              npe;                    //- avg nanosecs per element
+    vector<float>   vdst_avx, vdst_stl;     //- destination arrays
+    stopwatch       sw;                     //- for timing
+    size_t const    ncnt = vsrc.size();     //- number of elements in source
+    size_t const    xmin = 100'000'000u;    //- min value of (reps * ncnt)
+    int64_t         stl_time;               //- avg nanosecs per rep for STL approach
+    int64_t         avx_time;               //- avg nanosecs per rep for AVX approach
+    double          npe;                    //- avg nanosecs per element
+    char            resbuf[256];
 
     //- Try to do enough reps for a reasonable amount of collection time.
     //
@@ -279,8 +282,8 @@ median_rep_driver(std::vector<float> const& vsrc, size_t reps, char const* name)
     //
     vdst_avx.resize(ncnt+1);
     vdst_stl.resize(ncnt+1);
-    std::fill(std::begin(vdst_stl), std::end(vdst_stl), 99.0f);
-    std::fill(std::begin(vdst_avx), std::end(vdst_avx), 99.0f);
+    fill(begin(vdst_stl), end(vdst_stl), 99.0f);
+    fill(begin(vdst_avx), end(vdst_avx), 99.0f);
 
     //- Compute the median using the simple STL-based algorithm.
     //
@@ -290,9 +293,9 @@ median_rep_driver(std::vector<float> const& vsrc, size_t reps, char const* name)
         stl_median_of_7(vdst_stl, vsrc);
     }
     sw.stop();
-    npr = sw.nanoseconds_elapsed()/reps;
-    npe = (double) npr / (double) ncnt;
-    printf("stl %s %8ld %9ld %8.3f\n", name, ncnt, npr, npe);
+    stl_time = sw.nanoseconds_elapsed()/reps;
+    npe       = (double) stl_time / (double) ncnt;
+    printf("stl %s %8ld %9ld %8.3f\n", name, ncnt, stl_time, npe);
 
     //- Compute the median using the AVX512-based algorithm.
     //
@@ -302,9 +305,9 @@ median_rep_driver(std::vector<float> const& vsrc, size_t reps, char const* name)
         avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
     }
     sw.stop();
-    npr = sw.nanoseconds_elapsed()/reps;
-    npe = (double) npr / (double) ncnt;
-    printf("avx %s %8ld %9ld %8.3f\n", name, ncnt, npr, npe);
+    avx_time = sw.nanoseconds_elapsed()/reps;
+    npe      = (double) avx_time / (double) ncnt;
+    printf("avx %s %8ld %9ld %8.3f\n", name, ncnt, avx_time, npe);
 
     //- Check for overruns.
     //
@@ -327,6 +330,12 @@ median_rep_driver(std::vector<float> const& vsrc, size_t reps, char const* name)
                    name, i, vdst_avx[i], vdst_stl[i]);
         }
     }
+    fflush(stdout);
+
+    double  speedup = (double) stl_time / (double) avx_time;
+    sprintf(resbuf, "%s, %lu, %ld, %ld, %.2f, %lu",
+            name, vsrc.size(), stl_time, avx_time, speedup, reps);
+    results.push_back(string(resbuf));
 }
 
 void
@@ -334,10 +343,11 @@ tf05()
 {
     load_random_values();
 
-    std::vector<float>  vsrc;
-    size_t const        min_ncnt = 100u;
-    size_t const        max_ncnt = 10'000'000u;
-    int const           tmg_reps = 100;
+    vector<float>   vsrc;
+    vector<string>  results;
+    size_t const    min_ncnt = 100u;
+    size_t const    max_ncnt = 10'000'000u;
+    int const       tmg_reps = 100;
 
     for (size_t ncnt = min_ncnt;  ncnt <= max_ncnt;  ncnt *= 10)
     {
@@ -347,7 +357,7 @@ tf05()
         {
             vsrc[i] = i;
         }
-        median_rep_driver(vsrc, tmg_reps, "sorted");
+        median_rep_driver(vsrc, tmg_reps, "sorted", results);
     }
 
     for (size_t ncnt = min_ncnt;  ncnt <= max_ncnt;  ncnt *= 10)
@@ -358,7 +368,14 @@ tf05()
         {
             vsrc[i] = random_values[i];
         }
-        median_rep_driver(vsrc, tmg_reps, "random");
+        median_rep_driver(vsrc, tmg_reps, "random", results);
+    }
+
+    printf("\nname, size, stl, avx, speedup, reps\n");
+    for (auto const& e : results)
+    {
+        printf(e.c_str());
+        printf("\n");
     }
 }
 
@@ -368,7 +385,7 @@ tf06()
 {
     load_random_values();
 
-    std::vector<float>  vsrc, vdst_avx, vdst_stl;
+    vector<float>  vsrc, vdst_avx, vdst_stl;
     stopwatch           sw;
     size_t const        ncnt = 1048576;
     int const           reps = 100;
@@ -381,8 +398,8 @@ tf06()
     {
         vsrc[i] = i;
     }
-    std::fill(std::begin(vdst_stl), std::end(vdst_stl), 99.0f);
-    std::fill(std::begin(vdst_avx), std::end(vdst_avx), 99.0f);
+    fill(begin(vdst_stl), end(vdst_stl), 99.0f);
+    fill(begin(vdst_avx), end(vdst_avx), 99.0f);
 
     sw.start();
     for (int i = 0;  i < reps;  ++i)
@@ -404,8 +421,8 @@ tf06()
     {
         vsrc[i] = random_values[i];
     }
-    std::fill(std::begin(vdst_stl), std::end(vdst_stl), 99.0f);
-    std::fill(std::begin(vdst_avx), std::end(vdst_avx), 99.0f);
+    fill(begin(vdst_stl), end(vdst_stl), 99.0f);
+    fill(begin(vdst_avx), end(vdst_avx), 99.0f);
 
     sw.start();
     for (int i = 0;  i < reps;  ++i)
@@ -453,8 +470,8 @@ void tf07()
     float           krnl[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     vector<float>   input(len), result1(len), result2(len);
     MKL_INT const   dsize = (MKL_INT) len;
-    MKL_INT const   ksize = 15;
-    MKL_INT const   start = 7;
+    MKL_INT const   ksize = 3;
+    MKL_INT const   start = ksize/2;
     int             status;
 
     VSLConvTaskPtr  ptask;
@@ -466,7 +483,7 @@ void tf07()
     {
         input[i] = i + 1;
     }
-    krnl[7] = 1.0f;
+    krnl[start] = 1.0f;
 
     status = vslsConvNewTask1D(&ptask, VSL_CONV_MODE_DIRECT, ksize, dsize, dsize);
     status = vslConvSetStart(ptask, &start);
@@ -505,6 +522,7 @@ void tf07()
     printf("\nfor convolution with:\n");
     printf("  n = %lu  k = %i   mkl = %ld  avx = %ld (usec)\n", len, ksize, mkl_time, avx_time);
     printf("\n");
+    fflush(stdout);
 }
 
 void
@@ -558,17 +576,14 @@ conv_driver
         }
     }
 
-//    for (size_t i = 0;  i < 32u;  ++i)
-//    {
-//        printf("[%02lu] in = %5.1f  r1 = %5.1f  r2 = %5.1f\n", i, psrc[i], result1[i], result2[i]);
-//    }
     speedup = (double) mkl_time / (double) avx_time;
     printf("%s  n = %8lu  k = %2i  mkl = %9ld  avx = %8ld (ns)  s = %4.1f  r = %lu\n",
            name, len, ksize, mkl_time, avx_time, speedup, reps);
+    fflush(stdout);
 
     sprintf(resbuf, "%s, %lu, %i, %ld, %ld, %.2f, %lu",
             name, len, ksize, mkl_time, avx_time, speedup, reps);
-    results.push_back(std::string(resbuf));
+    results.push_back(string(resbuf));
 }
 
 
@@ -578,9 +593,9 @@ tf08()
     load_random_values();
     mkl_domain_set_num_threads(1, MKL_DOMAIN_VML);
 
-    std::vector<float>  vsrc;
-    std::vector<float>  krnl;
-    std::vector<string> results;
+    vector<float>  vsrc;
+    vector<float>  krnl;
+    vector<string> results;
     size_t const        min_ncnt = 1000u;
     size_t const        max_ncnt = 10'000'000u;
     size_t const        tmg_reps = 1000;
@@ -589,7 +604,7 @@ tf08()
     vsrc.reserve(max_ncnt);
     krnl.reserve(16);
 
-    for (size_t klen = 5;  klen <= 15;  klen +=2)
+    for (size_t klen = 3;  klen <= 15;  klen +=2)
     {
         krnl.resize(klen);
 
@@ -597,7 +612,7 @@ tf08()
         {
             vsrc.resize(ncnt);
 
-            std::fill(krnl.begin(), krnl.end(), 0.0f);
+            fill(krnl.begin(), krnl.end(), 0.0f);
             krnl[klen/2] = 1.0;
 
             for (size_t i = 0;  i < vsrc.size();  ++i)
@@ -612,7 +627,7 @@ tf08()
             }
             conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "del-random", results);
 
-            std::fill(krnl.begin(), krnl.end(), 1.0f);
+            fill(krnl.begin(), krnl.end(), 1.0f);
 
             for (size_t i = 0;  i < vsrc.size();  ++i)
             {
@@ -627,6 +642,7 @@ tf08()
             conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "sum-random", results);
         }
         printf("\n");
+        fflush(stdout);
     }
 
     printf("\nname, size, ksize, mkl, avx, speedup, reps\n");

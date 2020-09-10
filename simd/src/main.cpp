@@ -11,8 +11,11 @@ int main()
     tf02();
     tf03();
     tf04();
-    //tf05();
+#if 0
+    tf05();
+#else
     tf07();
     tf08();
+#endif
     return 0;
 }

@@ -363,7 +363,7 @@ avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psr
     switch (klen)
     {
       case 3:
-        avx_convolve<15,7>(pdst, pkrnl, psrc, len);
+        avx_convolve<3,1>(pdst, pkrnl, psrc, len);
         return;
 
       case 5:
