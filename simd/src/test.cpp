@@ -103,7 +103,7 @@ tf02()
         rv = load_from(&work[0]);
         rr = sort_two_lanes_of_8(rv);
 
-        store_to_address(work, rr);
+        store_to(work, rr);
 
         if (do_print  &&  (++N % 1000) == 0)
         {
@@ -142,7 +142,7 @@ tf03()
         rv = load_from(work);
         rr = sort_two_lanes_of_8(rv);
 
-        store_to_address(work, rr);
+        store_to(work, rr);
 
         if (do_print  &&  (++N % 100) == 0)
         {

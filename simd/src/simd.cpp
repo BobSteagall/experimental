@@ -187,15 +187,15 @@ avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
 
     //- This permutation specifies how to load the two lanes of 7.
     //
-    ri512 const     load_perm = make_permute<0,1,2,3,4,5,6,7,1,2,3,4,5,6,7,8>();
+    ri512 const     load_perm = make_perm_map<0,1,2,3,4,5,6,7,1,2,3,4,5,6,7,8>();
 
     //- This permutation specifies which elements to save.
     //
-    ri512 const     save_perm = make_permute<3,11,3,11,3,11,3,11,3,11,3,11,3,11,3,11>();
+    ri512 const     save_perm = make_perm_map<3,11,3,11,3,11,3,11,3,11,3,11,3,11,3,11>();
 
     //- This is a bitmask pattern for picking out adjacent elements.
     //
-    constexpr m512  save = make_bitmask<1,1>();
+    constexpr m512  save = make_bit_mask<1,1>();
 
     //- This array of bitmasks specifies which pair of elements to blend into the result.
     //
@@ -224,7 +224,7 @@ avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
         {
             work = permute(lo, load_perm);
             work = sort_two_lanes_of_7(work);
-            data = mask_permute(data, work, save_perm, save_mask[i]);
+            data = masked_permute(data, work, save_perm, save_mask[i]);
             in_place_shift_down_with_carry<2>(lo, hi);
         }
 
@@ -270,13 +270,13 @@ avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
             {
                 work = permute(lo, load_perm);
                 work = sort_two_lanes_of_7(work);
-                data = mask_permute(data, work, save_perm, save_mask[i]);
+                data = masked_permute(data, work, save_perm, save_mask[i]);
                 in_place_shift_down_with_carry<2>(lo, hi);
             }
 
             if (wrote <= (buf_len - 16))
             {
-                store_to_address(pdst + wrote, data);
+                store_to(pdst + wrote, data);
                 wrote += 16;
             }
             else
@@ -353,7 +353,7 @@ FastConvolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
             in_place_shift_down_with_carry<1>(lo, hi);
         }
 
-        store_to_address(pDst, sum);
+        store_to(pDst, sum);
     }
 }
 */

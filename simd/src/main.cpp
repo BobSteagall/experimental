@@ -11,11 +11,11 @@ int main()
     tf02();
     tf03();
     tf04();
-#if 0
+//#if 0
     tf05();
-#else
+//#else
     tf07();
     tf08();
-#endif
+//#endif
     return 0;
 }
