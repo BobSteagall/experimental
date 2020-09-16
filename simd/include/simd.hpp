@@ -4,13 +4,11 @@
 #include <cstdio>
 #include <cstdint>
 
-#include <complex>
-#include <limits>
 #include <type_traits>
 
 #ifdef __OPTIMIZE__
     #include <immintrin.h>
-    #define KEWB_FORCE_INLINE   __attribute__((__always_inline__)) inline
+    #define KEWB_FORCE_INLINE   inline __attribute__((__always_inline__))
 #else
     #define __OPTIMIZE__
     #include <immintrin.h>
@@ -24,38 +22,29 @@ using rd_128 = __m128d;
 using rf_128 = __m128;
 using ri_128 = __m128i;
 
-using rd256 = __m256d;
-using rf256 = __m256;
-using ri256 = __m256i;
-using dr256 = __m256d;
-using fr256 = __m256;
-using ir256 = __m256i;
+using rd_256  = __m256d;
+using rf_256  = __m256;
+using ri_256  = __m256i;
+using msk_256 = __m256i;
 
-using rd512 = __m512d;
-using rf512 = __m512;
-using ri512 = __m512i;
-using dr512 = __m512d;
-using fr512 = __m512;
-using ir512 = __m512i;
-using r512d = __m512d;
-using r512f = __m512;
-using r512i = __m512i;
+using rd_512  = __m512d;
+using rf_512  = __m512;
+using ri_512  = __m512i;
+using msk_512 = uint32_t;
 
-using m256 = __m256i;
-using m512 = uint32_t;
 
 void    print_reg(char const* name, uint32_t i);
-void    print_reg(char const* name, __m128d r);
-void    print_reg(char const* name, __m128  r);
-void    print_reg(char const* name, __m128i r);
-void    print_reg(char const* name, __m256d r);
-void    print_reg(char const* name, __m256  r);
-void    print_reg(char const* name, __m256i r);
-void    print_reg(char const* name, __m512d r);
-void    print_reg(char const* name, __m512  r);
-void    print_reg(char const* name, __m512i r);
+void    print_reg(char const* name, rd_128 r);
+void    print_reg(char const* name, rf_128  r);
+void    print_reg(char const* name, ri_128 r);
+void    print_reg(char const* name, rd_256 r);
+void    print_reg(char const* name, rf_256  r);
+void    print_reg(char const* name, ri_256 r);
+void    print_reg(char const* name, rd_512 r);
+void    print_reg(char const* name, rf_512  r);
+void    print_reg(char const* name, ri_512 r);
 void    print_mask(char const* name, uint32_t mask, int bits);
-void    print_mask(char const* name, __m256i mask, int);
+void    print_mask(char const* name, ri_256 mask, int);
 
 #define PRINT_REG(R)        print_reg(#R, R)
 #define PRINT_MASK(M)       print_mask(#M, M, 16)
@@ -64,45 +53,45 @@ void    print_mask(char const* name, __m256i mask, int);
 #define PRINT_LINE()        printf("\n");
 
 
-KEWB_FORCE_INLINE __m512
+KEWB_FORCE_INLINE rf_512
 load_value(float v)
 {
     return _mm512_set1_ps(v);
 }
 
-KEWB_FORCE_INLINE __m512i
+KEWB_FORCE_INLINE ri_512
 load_value(int32_t i)
 {
     return _mm512_set1_epi32(i);
 }
 
-KEWB_FORCE_INLINE r512f
+KEWB_FORCE_INLINE rf_512
 load_from(float const* psrc)
 {
     return _mm512_loadu_ps(psrc);
 }
 
-KEWB_FORCE_INLINE r512f
-masked_load_from(float const* psrc, float fill, m512 mask)
+KEWB_FORCE_INLINE rf_512
+masked_load_from(float const* psrc, float fill, msk_512 mask)
 {
     return _mm512_mask_loadu_ps(_mm512_set1_ps(fill), (__mmask16) mask, psrc);
 }
 
-KEWB_FORCE_INLINE r512f
-masked_load_from(float const* psrc, r512f fill, m512 mask)
+KEWB_FORCE_INLINE rf_512
+masked_load_from(float const* psrc, rf_512 fill, msk_512 mask)
 {
     return _mm512_mask_loadu_ps(fill, (__mmask16) mask, psrc);
 }
 
 
 KEWB_FORCE_INLINE void
-store_to(float* pdst, __m512 r)
+store_to(float* pdst, rf_512 r)
 {
     _mm512_mask_storeu_ps(pdst, (__mmask16) 0xFFFFu, r);
 }
 
 KEWB_FORCE_INLINE void
-masked_store_to(float* pdst, __m512 r, m512 mask)
+masked_store_to(float* pdst, rf_512 r, msk_512 mask)
 {
     _mm512_mask_storeu_ps(pdst, (__mmask16) mask, r);
 }
@@ -128,21 +117,21 @@ make_bit_mask()
             (M << 12) | (N << 13) | (O << 14) | (P << 15));
 }
 
-KEWB_FORCE_INLINE __m512
-blend(__m512 r0, __m512 r1, uint32_t mask)
+KEWB_FORCE_INLINE rf_512
+blend(rf_512 r0, rf_512 r1, uint32_t mask)
 {
     return _mm512_mask_blend_ps((__mmask16) mask, r0, r1);
 }
 
 
-KEWB_FORCE_INLINE __m512
-permute(__m512 r, __m512i perm)
+KEWB_FORCE_INLINE rf_512
+permute(rf_512 r, ri_512 perm)
 {
     return _mm512_permutexvar_ps(perm, r);
 }
 
-KEWB_FORCE_INLINE __m512
-masked_permute(__m512 r0, __m512 r1, __m512i perm, uint32_t mask)
+KEWB_FORCE_INLINE rf_512
+masked_permute(rf_512 r0, rf_512 r1, ri_512 perm, uint32_t mask)
 {
     return _mm512_mask_permutexvar_ps(r0, (__mmask16) mask, perm, r1);
 }
@@ -151,7 +140,7 @@ template<unsigned A, unsigned B, unsigned C, unsigned D,
          unsigned E, unsigned F, unsigned G, unsigned H,
          unsigned I, unsigned J, unsigned K, unsigned L,
          unsigned M, unsigned N, unsigned O, unsigned P>
-KEWB_FORCE_INLINE __m512i
+KEWB_FORCE_INLINE ri_512
 make_perm_map()
 {
     static_assert((A < 16) && (B < 16) && (C < 16) && (D < 16) &&
@@ -163,8 +152,8 @@ make_perm_map()
 }
 
 template<int R>
-KEWB_FORCE_INLINE __m512
-rotate(__m512 r0)
+KEWB_FORCE_INLINE rf_512
+rotate(rf_512 r0)
 {
     if constexpr ((R % 16) == 0)
     {
@@ -195,16 +184,16 @@ rotate(__m512 r0)
 }
 
 template<int R>
-KEWB_FORCE_INLINE __m512
-rotate_down(__m512 r0)
+KEWB_FORCE_INLINE rf_512
+rotate_down(rf_512 r0)
 {
     static_assert(R >= 0);
     return rotate<-R>(r0);
 }
 
 template<int R>
-KEWB_FORCE_INLINE __m512
-rotate_up(__m512 r0)
+KEWB_FORCE_INLINE rf_512
+rotate_up(rf_512 r0)
 {
     static_assert(R >= 0);
     return rotate<R>(r0);
@@ -220,15 +209,15 @@ shift_down_blend_mask()
 
 
 template<int S>
-KEWB_FORCE_INLINE __m512
-shift_down(__m512 r0)
+KEWB_FORCE_INLINE rf_512
+shift_down(rf_512 r0)
 {
     return blend(rotate_down<S>(r0), load_value(0), shift_down_blend_mask<S>());
 }
 
 template<int S>
-KEWB_FORCE_INLINE __m512
-shift_down_with_carry(__m512 lo, __m512 hi)
+KEWB_FORCE_INLINE rf_512
+shift_down_with_carry(rf_512 lo, rf_512 hi)
 {
     return blend(rotate_down<S>(lo), rotate_down<S>(hi), shift_down_blend_mask<S>());
 }
@@ -242,20 +231,20 @@ shift_up_blend_mask()
 }
 
 template<int S>
-KEWB_FORCE_INLINE __m512
-shift_up(__m512 r0)
+KEWB_FORCE_INLINE rf_512
+shift_up(rf_512 r0)
 {
     return blend(rotate_up<S>(r0), load_value(0), shift_up_blend_mask<S>());
 }
 template<int S>
-KEWB_FORCE_INLINE __m512
-shift_up_with_carry(__m512 lo, __m512 hi)
+KEWB_FORCE_INLINE rf_512
+shift_up_with_carry(rf_512 lo, rf_512 hi)
 {
     return blend(rotate_up<S>(lo), rotate_up<S>(hi), shift_up_blend_mask<S>());
 }
 
 template<int BIAS, uint32_t MASK>
-KEWB_FORCE_INLINE __m512i
+KEWB_FORCE_INLINE ri_512
 make_shift_permutation()
 {
     constexpr int32_t   a = ((BIAS + 0)  % 16) | ((MASK & 1u)        ? 0x10 : 0);
@@ -280,13 +269,13 @@ make_shift_permutation()
 
 template<int S>
 KEWB_FORCE_INLINE void
-in_place_shift_down_with_carry(__m512& lo, __m512& hi)
+in_place_shift_down_with_carry(rf_512& lo, rf_512& hi)
 {
     static_assert(S >= 0  &&  S <= 16);
 
     constexpr uint32_t  zmask = (0xFFFFu >> (unsigned) S);
     constexpr uint32_t  bmask = ~zmask & 0xFFFFu;
-    __m512i             perm  = make_shift_permutation<S, bmask>();
+    ri_512             perm  = make_shift_permutation<S, bmask>();
 
     lo = _mm512_permutex2var_ps(lo, perm, hi);
     hi = _mm512_maskz_permutex2var_ps((__mmask16) zmask, hi, perm, hi);
@@ -295,58 +284,58 @@ in_place_shift_down_with_carry(__m512& lo, __m512& hi)
 
 //- Functions for arithmetic
 //
-KEWB_FORCE_INLINE __m512
-minimum(__m512 r0, __m512 r1)
+KEWB_FORCE_INLINE rf_512
+minimum(rf_512 r0, rf_512 r1)
 {
     return _mm512_min_ps(r0, r1);
 }
 
-__m512
-KEWB_FORCE_INLINE maximum(__m512 r0, __m512 r1)
+rf_512
+KEWB_FORCE_INLINE maximum(rf_512 r0, rf_512 r1)
 {
     return _mm512_max_ps(r0, r1);
 }
 
-KEWB_FORCE_INLINE __m512
-fused_multiply_add(__m512 r0, __m512 r1, __m512 acc)
+KEWB_FORCE_INLINE rf_512
+fused_multiply_add(rf_512 r0, rf_512 r1, rf_512 acc)
 {
     return _mm512_fmadd_ps(r0, r1, acc);
 }
 
 
-KEWB_FORCE_INLINE __m512
-compare_with_exchange(__m512 vals, __m512i perm, uint32_t mask)
+KEWB_FORCE_INLINE rf_512
+compare_with_exchange(rf_512 vals, ri_512 perm, uint32_t mask)
 {
-    __m512  exch = permute(vals, perm);
-    __m512  vmin = minimum(vals, exch);
-    __m512  vmax = maximum(vals, exch);
+    rf_512  exch = permute(vals, perm);
+    rf_512  vmin = minimum(vals, exch);
+    rf_512  vmax = maximum(vals, exch);
 
     return blend(vmin, vmax, mask);
 }
 
-KEWB_FORCE_INLINE __m512
-sort_two_lanes_of_8(rf512 vals)
+KEWB_FORCE_INLINE rf_512
+sort_two_lanes_of_8(rf_512 vals)
 {
     //- Precompute the permutations and bitmasks for the 6 stages of this bitonic sorting sequence.
-    //                                    0   1   2   3   4   5   6   7     0   1   2   3   4   5   6   7
-    //                                   ------------------------------------------------------------------
-    ri512 const     perm0 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
-    constexpr m512  mask0 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
+    //                                        0   1   2   3   4   5   6   7     0   1   2   3   4   5   6   7
+    //                                       ------------------------------------------------------------------
+    ri_512 const        perm0 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
+    constexpr msk_512   mask0 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
 
-    ri512 const     perm1 = make_perm_map<3,  2,  1,  0,  7,  6,  5,  4,   11, 10,  9,  8, 15, 14, 13, 12>();
-    constexpr m512  mask1 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  1,    0,  0,  1,  1,  0,  0,  1,  1>();
+    ri_512 const        perm1 = make_perm_map<3,  2,  1,  0,  7,  6,  5,  4,   11, 10,  9,  8, 15, 14, 13, 12>();
+    constexpr msk_512   mask1 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  1,    0,  0,  1,  1,  0,  0,  1,  1>();
 
-    ri512 const     perm2 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
-    constexpr m512  mask2 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
+    ri_512 const        perm2 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
+    constexpr msk_512   mask2 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
 
-    ri512 const     perm3 = make_perm_map<7,  6,  5,  4,  3,  2,  1,  0,   15, 14, 13, 12, 11, 10,  9,  8>();
-    constexpr m512  mask3 = make_bit_mask<0,  0,  0,  0,  1,  1,  1,  1,    0,  0,  0,  0,  1,  1,  1,  1>();
+    ri_512 const        perm3 = make_perm_map<7,  6,  5,  4,  3,  2,  1,  0,   15, 14, 13, 12, 11, 10,  9,  8>();
+    constexpr msk_512   mask3 = make_bit_mask<0,  0,  0,  0,  1,  1,  1,  1,    0,  0,  0,  0,  1,  1,  1,  1>();
 
-    ri512 const     perm4 = make_perm_map<2,  3,  0,  1,  6,  7,  4,  5,   10, 11,  8,  9, 14, 15, 12, 13>();
-    constexpr m512  mask4 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  1,    0,  0,  1,  1,  0,  0,  1,  1>();
+    ri_512 const        perm4 = make_perm_map<2,  3,  0,  1,  6,  7,  4,  5,   10, 11,  8,  9, 14, 15, 12, 13>();
+    constexpr msk_512   mask4 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  1,    0,  0,  1,  1,  0,  0,  1,  1>();
 
-    ri512 const     perm5 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
-    constexpr m512  mask5 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
+    ri_512 const        perm5 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
+    constexpr msk_512   mask5 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
 
     vals = compare_with_exchange(vals, perm0, mask0);
     vals = compare_with_exchange(vals, perm1, mask1);
@@ -358,29 +347,29 @@ sort_two_lanes_of_8(rf512 vals)
     return vals;
 }
 
-KEWB_FORCE_INLINE __m512
-sort_two_lanes_of_7(rf512 vals)
+KEWB_FORCE_INLINE rf_512
+sort_two_lanes_of_7(rf_512 vals)
 {
     //- Precompute the permutations and bitmasks for the 6 stages of this bitonic sorting sequence.
-    //                                    0   1   2   3   4   5   6   7     0   1   2   3   4   5   6   7
-    //                                    ---------------------------------------------------------------
-    ri512 const     perm0 = make_perm_map<4,  5,  6,  3,  0,  1,  2,  7,   12, 13, 14, 11,  8,  9, 10, 15>();
-    constexpr m512  mask0 = make_bit_mask<0,  0,  0,  0,  1,  1,  1,  0,    0,  0,  0,  0,  1,  1,  1,  0>();
+    //                                        0   1   2   3   4   5   6   7     0   1   2   3   4   5   6   7
+    //                                       ---------------------------------------------------------------
+    ri_512 const        perm0 = make_perm_map<4,  5,  6,  3,  0,  1,  2,  7,   12, 13, 14, 11,  8,  9, 10, 15>();
+    constexpr msk_512   mask0 = make_bit_mask<0,  0,  0,  0,  1,  1,  1,  0,    0,  0,  0,  0,  1,  1,  1,  0>();
 
-    ri512 const     perm1 = make_perm_map<2,  3,  0,  1,  6,  5,  4,  7,   10, 11,  8,  9, 14, 13, 12, 15>();
-    constexpr m512  mask1 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  0,   0,  0,  1,  1,  0,  0,  1,  0>();
+    ri_512 const        perm1 = make_perm_map<2,  3,  0,  1,  6,  5,  4,  7,   10, 11,  8,  9, 14, 13, 12, 15>();
+    constexpr msk_512   mask1 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  0,   0,  0,  1,  1,  0,  0,  1,  0>();
 
-    ri512 const     perm2 = make_perm_map<1,  0,  4,  5,  2,  3,  6,  7,    9,  8, 12, 13, 10, 11, 14, 15>();
-    constexpr m512  mask2 = make_bit_mask<0,  1,  0,  0,  1,  1,  0,  0,    0,  1,  0,  0,  1,  1,  0,  0>();
+    ri_512 const        perm2 = make_perm_map<1,  0,  4,  5,  2,  3,  6,  7,    9,  8, 12, 13, 10, 11, 14, 15>();
+    constexpr msk_512   mask2 = make_bit_mask<0,  1,  0,  0,  1,  1,  0,  0,    0,  1,  0,  0,  1,  1,  0,  0>();
 
-    ri512 const     perm3 = make_perm_map<0,  1,  3,  2,  5,  4,  6,  7,    8,  9, 11, 10, 13, 12, 14, 15>();
-    constexpr m512  mask3 = make_bit_mask<0,  0,  0,  1,  0,  1,  0,  0,    0,  0,  0,  1,  0,  1,  0,  0>();
+    ri_512 const        perm3 = make_perm_map<0,  1,  3,  2,  5,  4,  6,  7,    8,  9, 11, 10, 13, 12, 14, 15>();
+    constexpr msk_512   mask3 = make_bit_mask<0,  0,  0,  1,  0,  1,  0,  0,    0,  0,  0,  1,  0,  1,  0,  0>();
 
-    ri512 const     perm4 = make_perm_map<0,  4,  2,  6,  1,  5,  3,  7,    8, 12, 10, 14,  9, 13, 11, 15>();
-    constexpr m512  mask4 = make_bit_mask<0,  0,  0,  0,  1,  0,  1,  0,    0,  0,  0,  0,  1,  0,  1,  0>();
+    ri_512 const        perm4 = make_perm_map<0,  4,  2,  6,  1,  5,  3,  7,    8, 12, 10, 14,  9, 13, 11, 15>();
+    constexpr msk_512   mask4 = make_bit_mask<0,  0,  0,  0,  1,  0,  1,  0,    0,  0,  0,  0,  1,  0,  1,  0>();
 
-    ri512 const     perm5 = make_perm_map<0,  2,  1,  4,  3,  6,  5,  7,    8, 10,  9, 12, 11, 14, 13, 15>();
-    constexpr m512  mask5 = make_bit_mask<0,  0,  1,  0,  1,  0,  1,  0,    0,  0,  1,  0,  1,  0,  1,  0>();
+    ri_512 const        perm5 = make_perm_map<0,  2,  1,  4,  3,  6,  5,  7,    8, 10,  9, 12, 11, 14, 13, 15>();
+    constexpr msk_512   mask5 = make_bit_mask<0,  0,  1,  0,  1,  0,  1,  0,    0,  0,  1,  0,  1,  0,  1,  0>();
 
     vals = compare_with_exchange(vals, perm0, mask0);
     vals = compare_with_exchange(vals, perm1, mask1);
@@ -391,7 +380,6 @@ sort_two_lanes_of_7(rf512 vals)
 
     return vals;
 }
-
 
 void    avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len);
 void    avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psrc, size_t len);

@@ -86,7 +86,7 @@ print_reg(char const* pname, ri_128 r)
 //------
 //
 void
-print_reg(char const* pname, rd256 r)
+print_reg(char const* pname, rd_256 r)
 {
     double  vals[4];
 
@@ -95,7 +95,7 @@ print_reg(char const* pname, rd256 r)
 }
 
 void
-print_reg(char const* pname, rf256 r)
+print_reg(char const* pname, rf_256 r)
 {
     float   vals[8];
 
@@ -104,18 +104,18 @@ print_reg(char const* pname, rf256 r)
 }
 
 void
-print_reg(char const* pname, ri256 r)
+print_reg(char const* pname, ri_256 r)
 {
     int32_t vals[8];
 
-    _mm256_storeu_si256((ri256*) &vals[0], r);
+    _mm256_storeu_si256((ri_256*) &vals[0], r);
     print_vals(pname, vals, 8);
 }
 
 //------
 //
 void
-print_reg(char const* pname, rd512 r)
+print_reg(char const* pname, rd_512 r)
 {
     double  vals[8];
 
@@ -124,7 +124,7 @@ print_reg(char const* pname, rd512 r)
 }
 
 void
-print_reg(char const* pname, rf512 r)
+print_reg(char const* pname, rf_512 r)
 {
     float   vals[16];
 
@@ -133,7 +133,7 @@ print_reg(char const* pname, rf512 r)
 }
 
 void
-print_reg(char const* pname, ri512 r)
+print_reg(char const* pname, ri_512 r)
 {
     int32_t vals[16];
 
@@ -141,6 +141,8 @@ print_reg(char const* pname, ri512 r)
     print_vals(pname, vals, 16);
 }
 
+//------
+//
 void
 print_mask(char const* pname, uint32_t mask, int bits)
 {
@@ -160,7 +162,7 @@ print_mask(char const* pname, uint32_t mask, int bits)
 }
 
 void
-print_mask(char const* pname, __m256i mask, int)
+print_mask(char const* pname, ri_256 mask, int)
 {
     if (pname != nullptr)
     {
@@ -187,14 +189,14 @@ avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
     //
     constexpr int   windowCenter = KernelSize - KernelCenter - 1;
 
-    __m512  prev;   //- Bottom of the input data window
-    __m512  curr;   //- Middle of the input data windows
-    __m512  next;   //- Top of the input data window
-    __m512  lo;     //- Primary work data register, used to multiply kernel coefficients
-    __m512  hi;     //- Upper work data register, supplies values to the top of 'lo'
-    __m512  sum;    //- Accumulated value
+    rf_512  prev;   //- Bottom of the input data window
+    rf_512  curr;   //- Middle of the input data windows
+    rf_512  next;   //- Top of the input data window
+    rf_512  lo;     //- Primary work data register, used to multiply kernel coefficients
+    rf_512  hi;     //- Upper work data register, supplies values to the top of 'lo'
+    rf_512  sum;    //- Accumulated value
 
-    __m512  kcoeff[KernelSize];     //- Coefficients of the convolution kernel
+    rf_512  kcoeff[KernelSize];     //- Coefficients of the convolution kernel
 
     //- Broadcast each kernel coefficient into its own register, to be used later in the FMA call.
     //
@@ -278,33 +280,33 @@ avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psr
 void
 avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
 {
-    __m512      prev;   //- Bottom of the input data window
-    __m512      curr;   //- Middle of the input data window
-    __m512      next;   //- Top of the input data window
-    __m512      lo;     //- Primary work register
-    __m512      hi;     //- Upper work data register; feeds values into the top of 'lo'
-    __m512      data;   //- Holds output prior to store operation
-    __m512      work;   //- Accumulator
-    m512        mask;   //- Trailing boundary mask
+    rf_512      prev;   //- Bottom of the input data window
+    rf_512      curr;   //- Middle of the input data window
+    rf_512      next;   //- Top of the input data window
+    rf_512      lo;     //- Primary work register
+    rf_512      hi;     //- Upper work data register; feeds values into the top of 'lo'
+    rf_512      data;   //- Holds output prior to store operation
+    rf_512      work;   //- Accumulator
+    msk_512        mask;   //- Trailing boundary mask
 
-    rf512 const     first = load_value(psrc[0]);
-    rf512 const     last  = load_value(psrc[buf_len - 1]);
+    rf_512 const     first = load_value(psrc[0]);
+    rf_512 const     last  = load_value(psrc[buf_len - 1]);
 
     //- This permutation specifies how to load the two lanes of 7.
     //
-    ri512 const     load_perm = make_perm_map<0,1,2,3,4,5,6,7,1,2,3,4,5,6,7,8>();
+    ri_512 const     load_perm = make_perm_map<0,1,2,3,4,5,6,7,1,2,3,4,5,6,7,8>();
 
     //- This permutation specifies which elements to save.
     //
-    ri512 const     save_perm = make_perm_map<3,11,3,11,3,11,3,11,3,11,3,11,3,11,3,11>();
+    ri_512 const     save_perm = make_perm_map<3,11,3,11,3,11,3,11,3,11,3,11,3,11,3,11>();
 
     //- This is a bitmask pattern for picking out adjacent elements.
     //
-    constexpr m512  save = make_bit_mask<1,1>();
+    constexpr msk_512  save = make_bit_mask<1,1>();
 
     //- This array of bitmasks specifies which pair of elements to blend into the result.
     //
-    constexpr m512  save_mask[8] = {save << 0, save << 2,  save << 4,  save << 6,
+    constexpr msk_512  save_mask[8] = {save << 0, save << 2,  save << 4,  save << 6,
                                     save << 8, save << 10, save << 12, save << 14};
 
     //- Preload the initial input data window; note the values in the register representing

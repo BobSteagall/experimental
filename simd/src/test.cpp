@@ -63,14 +63,14 @@ load_random_values()
 }
 
 
-KEWB_FORCE_INLINE __m512
+KEWB_FORCE_INLINE rf_512
 load_values(float a, float b, float c, float d, float e, float f, float g, float h,
             float i, float j, float k, float l, float m, float n, float o, float p)
 {
     return _mm512_setr_ps(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p);
 }
 
-KEWB_FORCE_INLINE __m512i
+KEWB_FORCE_INLINE ri_512
 load_values(int a, int b, int c, int d, int e, int f, int g, int h,
             int i, int j, int k, int l, int m, int n, int o, int p)
 {
@@ -81,22 +81,22 @@ load_values(int a, int b, int c, int d, int e, int f, int g, int h,
 void
 tf01()
 {
-    ri512  r1 = load_values(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
+    ri_512  r1 = load_values(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
 //    PRINT_REG(r1);
 
 //    PRINT_MASK(0xAA);
 
-    fr512   r2 = load_values(16.0f, 15.0f, 14.0f, 13.0f, 12.0f, 11.0f, 10.0f, 9.0f,
+    rf_512   r2 = load_values(16.0f, 15.0f, 14.0f, 13.0f, 12.0f, 11.0f, 10.0f, 9.0f,
                               8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 //    PRINT_REG(r2);
 
-    fr512   r3 = sort_two_lanes_of_8(r2);
+    rf_512   r3 = sort_two_lanes_of_8(r2);
 //    PRINT_REG(r3);
 
-    rf512   r4 = sort_two_lanes_of_7(r2);
+    rf_512   r4 = sort_two_lanes_of_7(r2);
 //    PRINT_REG(r4);
 
-    __m128i     chunk;
+    ri_128     chunk;
 
     chunk = _mm_setr_epi32(1, 2, 3, 4);
     PRINT_REG(chunk);
@@ -112,7 +112,7 @@ tf02()
     float   vals[8] = {1, 2, 3, 4, 5, 6, 7, 8};
     float   exp[16] = {1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8};
     float   work[16];
-    rf512   rv, rr;
+    rf_512   rv, rr;
 
     do
     {
@@ -151,7 +151,7 @@ tf03()
     float   vals[7]  = {1, 2, 3, 4, 5, 6, 7};
     float   exp[16]  = {1, 2, 3, 4, 5, 6, 7, 99, 1, 2, 3, 4, 5, 6, 7, 99};
     float   work[16] = {0, 0, 0, 0, 0, 0, 0, 99, 0, 0, 0, 0, 0, 0, 0, 99};
-    rf512   rv, rr;
+    rf_512   rv, rr;
 
     do
     {
