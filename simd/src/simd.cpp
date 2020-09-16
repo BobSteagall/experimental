@@ -174,7 +174,7 @@ print_mask(char const* pname, ri_256 mask, int)
 
 template<int KernelSize, int KernelCenter>
 void
-avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
+avx_convolve(float* pdst, float const* pkrnl, float const* psrc, size_t len)
 {
     //- The convolution kernel must have non-negative size and fit with a single reister.
     //
@@ -187,7 +187,7 @@ avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
     //- Convolution flips the kernel, and so the kernel center (in kernel array coordinates)
     //  must be converted to the coordinates of the window.
     //
-    constexpr int   windowCenter = KernelSize - KernelCenter - 1;
+    constexpr int   WindowCenter = KernelSize - KernelCenter - 1;
 
     rf_512  prev;   //- Bottom of the input data window
     rf_512  curr;   //- Middle of the input data windows
@@ -202,24 +202,24 @@ avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
     //
     for (int i = 0, j = KernelSize - 1;  i < KernelSize;  ++i, --j)
     {
-        kcoeff[i] = load_value(pKrnl[j]);
+        kcoeff[i] = load_value(pkrnl[j]);
     }
 
     //- Preload the initial input data window; note the zeroes in the register representing data
     //  preceding the input array.
     //
     prev = load_value(0.0f);
-    curr = load_from(pSrc);
-    next = load_from(pSrc + 16);
+    curr = load_from(psrc);
+    next = load_from(psrc + 16);
 
-    for (auto pEnd = pSrc + len - 16;  pSrc < pEnd;  pSrc += 16, pDst += 16)
+    for (auto pEnd = psrc + len - 16; psrc < pEnd; psrc += 16, pdst += 16)
     {
         sum = load_value(0.0f);
 
         //- Init the work data registers to the correct offset in the input data window.
         //
-        lo = shift_up_with_carry<windowCenter>(prev, curr);
-        hi = shift_up_with_carry<windowCenter>(curr, next);
+        lo = shift_up_with_carry<WindowCenter>(prev, curr);
+        hi = shift_up_with_carry<WindowCenter>(curr, next);
 
         //- Slide the input data window upward by a register's work of values.  This
         //  could also be done at the bottom of the loop, but experimentation has shown
@@ -227,7 +227,7 @@ avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
         //
         prev = curr;
         curr = next;
-        next = load_from(pSrc + 32);
+        next = load_from(psrc + 32);
 
         for (int k = 0;  k < KernelSize;  ++k)
         {
@@ -235,7 +235,7 @@ avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
             in_place_shift_down_with_carry<1>(lo, hi);
         }
 
-        store_to(pDst, sum);
+        store_to(pdst, sum);
     }
 }
 
@@ -287,7 +287,7 @@ avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
     rf_512      hi;     //- Upper work data register; feeds values into the top of 'lo'
     rf_512      data;   //- Holds output prior to store operation
     rf_512      work;   //- Accumulator
-    msk_512        mask;   //- Trailing boundary mask
+    msk_512     mask;   //- Trailing boundary mask
 
     rf_512 const     first = load_value(psrc[0]);
     rf_512 const     last  = load_value(psrc[buf_len - 1]);
