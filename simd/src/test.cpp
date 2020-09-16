@@ -26,6 +26,8 @@ namespace {
     int const   time_reps = 100;
 }
 
+//- Pin a thread to the core it is currently executing on.
+//
 void
 pin_thread()
 {
@@ -41,6 +43,9 @@ pin_thread()
     }
 }
 
+//- Load the global array of random values.  Becasuse the same seed is used, every
+//  invocation of this function should result in the same set and order of values.
+//
 void
 load_random_values()
 {
@@ -57,10 +62,26 @@ load_random_values()
     }
 }
 
+
+KEWB_FORCE_INLINE __m512
+load_values(float a, float b, float c, float d, float e, float f, float g, float h,
+            float i, float j, float k, float l, float m, float n, float o, float p)
+{
+    return _mm512_setr_ps(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p);
+}
+
+KEWB_FORCE_INLINE __m512i
+load_values(int a, int b, int c, int d, int e, int f, int g, int h,
+            int i, int j, int k, int l, int m, int n, int o, int p)
+{
+    return _mm512_setr_epi32(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p);
+}
+
+
 void
 tf01()
 {
-    ri512  r1 = load_values<1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16>();
+    ri512  r1 = load_values(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
 //    PRINT_REG(r1);
 
 //    PRINT_MASK(0xAA);
@@ -379,86 +400,10 @@ tf05()
     }
 }
 
-/*
+
 void
 tf06()
-{
-    load_random_values();
-
-    vector<float>  vsrc, vdst_avx, vdst_stl;
-    stopwatch           sw;
-    size_t const        ncnt = 1048576;
-    int const           reps = 100;
-
-    vsrc.resize(ncnt);
-    vdst_avx.resize(ncnt+1);
-    vdst_stl.resize(ncnt+1);
-
-    for (size_t i = 0;  i < vsrc.size();  ++i)
-    {
-        vsrc[i] = i;
-    }
-    fill(begin(vdst_stl), end(vdst_stl), 99.0f);
-    fill(begin(vdst_avx), end(vdst_avx), 99.0f);
-
-    sw.start();
-    for (int i = 0;  i < reps;  ++i)
-    {
-        stl_median_of_7(vdst_stl, vsrc);
-    }
-    sw.stop();
-    printf("simple median (sorted): %ld usec\n", sw.microseconds_elapsed()/reps);
-
-    sw.start();
-    for (int i = 0;  i < reps;  ++i)
-    {
-        avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
-    }
-    sw.stop();
-    printf("avx512 median (sorted): %ld usec\n", sw.microseconds_elapsed()/reps);
-
-    for (size_t i = 0;  i < vsrc.size();  ++i)
-    {
-        vsrc[i] = random_values[i];
-    }
-    fill(begin(vdst_stl), end(vdst_stl), 99.0f);
-    fill(begin(vdst_avx), end(vdst_avx), 99.0f);
-
-    sw.start();
-    for (int i = 0;  i < reps;  ++i)
-    {
-        stl_median_of_7(vdst_stl, vsrc);
-    }
-    sw.stop();
-    printf("simple median (random): %ld usec\n", sw.microseconds_elapsed()/reps);
-
-    sw.start();
-    for (int i = 0;  i < reps;  ++i)
-    {
-        avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
-    }
-    sw.stop();
-    printf("avx512 median (random): %ld usec\n", sw.microseconds_elapsed()/reps);
-
-    if (vdst_stl.back() != 99.0f)
-    {
-        printf("stl buffer overrun at size %ld\n", ncnt);
-    }
-
-    if (vdst_avx.back() != 99.0f)
-    {
-        printf("avx buffer overrun at size %ld\n", ncnt);
-    }
-
-    for (size_t i = 0;  i < vsrc.size();  ++i)
-    {
-        if (vdst_avx[i] != vdst_stl[i])
-        {
-            printf("median diff at index %ld: vdst_avx = %.1f  vdst_stl = %.1f\n", i, vdst_avx[i], vdst_stl[i]);
-        }
-    }
-}
-*/
+{}
 
 void tf07()
 {

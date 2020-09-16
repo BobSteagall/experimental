@@ -170,6 +170,111 @@ print_mask(char const* pname, __m256i mask, int)
 }
 
 
+template<int KernelSize, int KernelCenter>
+void
+avx_convolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
+{
+    //- The convolution kernel must have non-negative size and fit with a single reister.
+    //
+    static_assert(KernelSize > 1  &&  KernelSize <= 16);
+
+    //- Thie index of the kernel center must be valid.
+    //
+    static_assert(KernelCenter >= 0  &&  KernelCenter < KernelSize);
+
+    //- Convolution flips the kernel, and so the kernel center (in kernel array coordinates)
+    //  must be converted to the coordinates of the window.
+    //
+    constexpr int   windowCenter = KernelSize - KernelCenter - 1;
+
+    __m512  prev;   //- Bottom of the input data window
+    __m512  curr;   //- Middle of the input data windows
+    __m512  next;   //- Top of the input data window
+    __m512  lo;     //- Primary work data register, used to multiply kernel coefficients
+    __m512  hi;     //- Upper work data register, supplies values to the top of 'lo'
+    __m512  sum;    //- Accumulated value
+
+    __m512  kcoeff[KernelSize];     //- Coefficients of the convolution kernel
+
+    //- Broadcast each kernel coefficient into its own register, to be used later in the FMA call.
+    //
+    for (int i = 0, j = KernelSize - 1;  i < KernelSize;  ++i, --j)
+    {
+        kcoeff[i] = load_value(pKrnl[j]);
+    }
+
+    //- Preload the initial input data window; note the zeroes in the register representing data
+    //  preceding the input array.
+    //
+    prev = load_value(0.0f);
+    curr = load_from(pSrc);
+    next = load_from(pSrc + 16);
+
+    for (auto pEnd = pSrc + len - 16;  pSrc < pEnd;  pSrc += 16, pDst += 16)
+    {
+        sum = load_value(0.0f);
+
+        //- Init the work data registers to the correct offset in the input data window.
+        //
+        lo = shift_up_with_carry<windowCenter>(prev, curr);
+        hi = shift_up_with_carry<windowCenter>(curr, next);
+
+        //- Slide the input data window upward by a register's work of values.  This
+        //  could also be done at the bottom of the loop, but experimentation has shown
+        //  that sliding the input data window here results in slightly better performance.
+        //
+        prev = curr;
+        curr = next;
+        next = load_from(pSrc + 32);
+
+        for (int k = 0;  k < KernelSize;  ++k)
+        {
+            sum = fused_multiply_add(kcoeff[k], lo, sum);   //- Update the accumulator
+            in_place_shift_down_with_carry<1>(lo, hi);
+        }
+
+        store_to(pDst, sum);
+    }
+}
+
+void
+avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psrc, size_t len)
+{
+    switch (klen)
+    {
+      case 3:
+        avx_convolve<3,1>(pdst, pkrnl, psrc, len);
+        return;
+
+      case 5:
+        avx_convolve<5,2>(pdst, pkrnl, psrc, len);
+        return;
+
+      case 7:
+        avx_convolve<7,3>(pdst, pkrnl, psrc, len);
+        return;
+
+      case 9:
+        avx_convolve<9,4>(pdst, pkrnl, psrc, len);
+        return;
+
+      case 11:
+        avx_convolve<11,5>(pdst, pkrnl, psrc, len);
+        return;
+
+      case 13:
+        avx_convolve<13,6>(pdst, pkrnl, psrc, len);
+        return;
+
+      case 15:
+        avx_convolve<15,7>(pdst, pkrnl, psrc, len);
+        return;
+
+      default:
+        return;
+    }
+}
+
 void
 avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
 {
@@ -286,112 +391,6 @@ avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
                 wrote = buf_len;
             }
         }
-    }
-}
-
-/*
-template<int KernelSize, int KernelCenter>
-void
-FastConvolve(float* pDst, float const* pKrnl, float const* pSrc, size_t len)
-{
-    //- The convolution kernel must have non-negative size and fit with a single reister.
-    //
-    static_assert(KernelSize > 1  &&  KernelSize <= 16);
-
-    //- Thie index of the kernel center must be valid.
-    //
-    static_assert(KernelCenter >= 0  &&  KernelCenter < KernelSize);
-
-    //- Convolution flips the kernel, and so the kernel center (in kernel array coordinates)
-    //  must be converted to the coordinates of the window.
-    //
-    constexpr int   windowCenter = KernelSize - KernelCenter - 1;
-
-    __m512  prev;   //- Bottom of the input data window
-    __m512  curr;   //- Middle of the input data windows
-    __m512  next;   //- Top of the input data window
-    __m512  lo;     //- Primary work data register, used to multiply kernel coefficients
-    __m512  hi;     //- Upper work data register, supplies values to the top of 'lo'
-    __m512  sum;    //- Accumulated value
-
-    __m512  kcoeff[KernelSize];     //- Coefficients of the convolution kernel
-
-    //- Broadcast each kernel coefficient into its own register, to be used later in the FMA call.
-    //
-    for (int i = 0, j = KernelSize - 1;  i < KernelSize;  ++i, --j)
-    {
-        kcoeff[i] = load_value(pKrnl[j]);
-    }
-
-    //- Preload the initial input data window; note the zeroes in the register representing data
-    //  preceding the input array.
-    //
-    prev = load_value(0.0f);
-    curr = load_from_address(pSrc);
-    next = load_from_address(pSrc + 16);
-
-    for (auto pEnd = pSrc + len - 16;  pSrc < pEnd;  pSrc += 16, pDst += 16)
-    {
-        sum = load_value(0.0f);
-
-        //- Init the work data registers to the correct offset in the input data window.
-        //
-        lo = shift_up_with_carry<windowCenter>(prev, curr);
-        hi = shift_up_with_carry<windowCenter>(curr, next);
-
-        //- Slide the input data window upward by a register's work of values.  This
-        //  could also be done at the bottom of the loop, but experimentation has shown
-        //  that sliding the input data window here results in slightly better performance.
-        //
-        prev = curr;
-        curr = next;
-        next = load_from_address(pSrc + 32);
-
-        for (int k = 0;  k < KernelSize;  ++k)
-        {
-            sum = fused_multiply_add(kcoeff[k], lo, sum);   //- Update the accumulator
-            in_place_shift_down_with_carry<1>(lo, hi);
-        }
-
-        store_to(pDst, sum);
-    }
-}
-*/
-void
-avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psrc, size_t len)
-{
-    switch (klen)
-    {
-      case 3:
-        avx_convolve<3,1>(pdst, pkrnl, psrc, len);
-        return;
-
-      case 5:
-        avx_convolve<5,2>(pdst, pkrnl, psrc, len);
-        return;
-
-      case 7:
-        avx_convolve<7,3>(pdst, pkrnl, psrc, len);
-        return;
-
-      case 9:
-        avx_convolve<9,4>(pdst, pkrnl, psrc, len);
-        return;
-
-      case 11:
-        avx_convolve<11,5>(pdst, pkrnl, psrc, len);
-        return;
-
-      case 13:
-        avx_convolve<13,6>(pdst, pkrnl, psrc, len);
-        return;
-
-      case 15:
-        avx_convolve<15,7>(pdst, pkrnl, psrc, len);
-        return;
-
-      default:
-        return;
     }
 }
 
