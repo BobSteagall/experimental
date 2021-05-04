@@ -77,6 +77,75 @@ load_values(int a, int b, int c, int d, int e, int f, int g, int h,
     return _mm512_setr_epi32(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p);
 }
 
+KEWB_FORCE_INLINE rf_512
+d_sort_two_lanes_of_8(rf_512 vals)
+{
+    //- Precompute the permutations and bitmasks for the 6 stages of this bitonic sorting sequence.
+    //                                        0   1   2   3   4   5   6   7     0   1   2   3   4   5   6   7
+    //                                       ------------------------------------------------------------------
+    ri_512 const        perm0 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
+    constexpr msk_512   mask0 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
+
+    ri_512 const        perm1 = make_perm_map<3,  2,  1,  0,  7,  6,  5,  4,   11, 10,  9,  8, 15, 14, 13, 12>();
+    constexpr msk_512   mask1 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  1,    0,  0,  1,  1,  0,  0,  1,  1>();
+
+    ri_512 const        perm2 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
+    constexpr msk_512   mask2 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
+
+    ri_512 const        perm3 = make_perm_map<7,  6,  5,  4,  3,  2,  1,  0,   15, 14, 13, 12, 11, 10,  9,  8>();
+    constexpr msk_512   mask3 = make_bit_mask<0,  0,  0,  0,  1,  1,  1,  1,    0,  0,  0,  0,  1,  1,  1,  1>();
+
+    ri_512 const        perm4 = make_perm_map<2,  3,  0,  1,  6,  7,  4,  5,   10, 11,  8,  9, 14, 15, 12, 13>();
+    constexpr msk_512   mask4 = make_bit_mask<0,  0,  1,  1,  0,  0,  1,  1,    0,  0,  1,  1,  0,  0,  1,  1>();
+
+    ri_512 const        perm5 = make_perm_map<1,  0,  3,  2,  5,  4,  7,  6,    9,  8, 11, 10, 13, 12, 15, 14>();
+    constexpr msk_512   mask5 = make_bit_mask<0,  1,  0,  1,  0,  1,  0,  1,    0,  1,  0,  1,  0,  1,  0,  1>();
+
+    PRINT_REG(vals);
+    PRINT_REG(perm0);
+    PRINT_MASK(mask0);
+    vals = compare_with_exchange(vals, perm0, mask0);
+    PRINT_REG(vals);
+    PRINT_LINE();
+
+    PRINT_REG(vals);
+    PRINT_REG(perm1);
+    PRINT_MASK(mask1);
+    vals = compare_with_exchange(vals, perm1, mask1);
+    PRINT_REG(vals);
+    PRINT_LINE();
+
+    PRINT_REG(vals);
+    PRINT_REG(perm2);
+    PRINT_MASK(mask2);
+    vals = compare_with_exchange(vals, perm2, mask2);
+    PRINT_REG(vals);
+    PRINT_LINE();
+
+    PRINT_REG(vals);
+    PRINT_REG(perm3);
+    PRINT_MASK(mask3);
+    vals = compare_with_exchange(vals, perm3, mask3);
+    PRINT_REG(vals);
+    PRINT_LINE();
+
+    PRINT_REG(vals);
+    PRINT_REG(perm4);
+    PRINT_MASK(mask4);
+    vals = compare_with_exchange(vals, perm4, mask4);
+    PRINT_REG(vals);
+    PRINT_LINE();
+
+    PRINT_REG(vals);
+    PRINT_REG(perm5);
+    PRINT_MASK(mask5);
+    vals = compare_with_exchange(vals, perm5, mask5);
+    PRINT_REG(vals);
+    PRINT_LINE();
+
+    return vals;
+}
+
 
 void
 tf01()
@@ -88,13 +157,21 @@ tf01()
 
     rf_512   r2 = load_values(16.0f, 15.0f, 14.0f, 13.0f, 12.0f, 11.0f, 10.0f, 9.0f,
                               8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+     msk_512 m  = make_bit_mask<0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1>();
+
 //    PRINT_REG(r2);
 
-    rf_512   r3 = sort_two_lanes_of_8(r2);
+    rf_512   r3 = d_sort_two_lanes_of_8(r2);
 //    PRINT_REG(r3);
 
     rf_512   r4 = sort_two_lanes_of_7(r2);
 //    PRINT_REG(r4);
+
+    PRINT_REG(r2);
+    PRINT_REG(r4);
+    PRINT_MASK(m);
+    PRINT_REG(blend(r2, r4, m));
+    PRINT_REG(rotate<3>(r2));
 
     ri_128     chunk;
 
@@ -102,6 +179,8 @@ tf01()
     PRINT_REG(chunk);
     chunk = _mm_shuffle_epi32(chunk, _MM_SHUFFLE(1, 0, 3, 2));
     PRINT_REG(chunk);
+
+    PRINT_LINE();
 
 }
 
@@ -235,6 +314,57 @@ stl_median_of_7(std::vector<float>& vdst, std::vector<float> const& vsrc)
 
 
 void
+stl_median_of_7_B(std::vector<float>& vdst, std::vector<float> const& vsrc)
+{
+    float   tmp[7];
+    size_t  ilast = vsrc.size();
+    auto    tmp_f = std::begin(tmp);
+    auto    tmp_l = std::end(tmp);
+    auto    src_f = std::begin(vsrc);
+    auto    src_l = std::end(vsrc);
+
+
+    std::fill(tmp_f, tmp_f+3, vsrc.front());
+    std::copy(src_f, src_f+4, tmp_f+3);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+    vdst[0] = tmp[3];
+
+    std::fill(tmp_f, tmp_f+2, vsrc.front());
+    std::copy(src_f, src_f+5, tmp_f+2);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+    vdst[1] = tmp[3];
+
+    std::fill(tmp_f, tmp_f+1, vsrc.front());
+    std::copy(src_f, src_f+6, tmp_f+1);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+    vdst[2] = tmp[3];
+
+    for (size_t i = 3;  i < vsrc.size()-3;  ++i, ++src_f)
+    {
+        std::copy(src_f, src_f + 7, tmp_f);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+        vdst[i] = tmp[3];
+    }
+
+    std::fill(tmp_f, tmp_l, vsrc.back());
+    std::copy(src_l - 6, src_l, tmp_f);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+    vdst[ilast - 3] = tmp[3];
+
+    std::fill(tmp_f, tmp_l, vsrc.back());
+    std::copy(src_l - 5, src_l, tmp_f);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+    vdst[ilast - 2] = tmp[3];
+
+    std::fill(tmp_f, tmp_l, vsrc.back());
+    std::copy(src_l - 4, src_l, tmp_f);
+    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+    vdst[ilast - 1] = tmp[3];
+
+}
+
+
+void
 tf04()
 {
     std::vector<float>  vsrc, vdst_avx, vdst_stl;
@@ -254,7 +384,7 @@ tf04()
             vsrc[i] = i;
         }
 
-        stl_median_of_7(vdst_stl, vsrc);
+        stl_median_of_7_B(vdst_stl, vsrc);
         avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
 
         if (vdst_stl.back() != 99.0f)
@@ -311,7 +441,7 @@ median_rep_driver
     sw.start();
     for (size_t i = 0;  i < reps;  ++i)
     {
-        stl_median_of_7(vdst_stl, vsrc);
+        stl_median_of_7_B(vdst_stl, vsrc);
     }
     sw.stop();
     stl_time = sw.nanoseconds_elapsed()/reps;
