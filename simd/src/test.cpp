@@ -18,7 +18,7 @@ using namespace std;
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
 namespace {
-    size_t              random_count = (1 << 24);
+    size_t              random_count = (1 << 27);
     std::vector<float>  random_values;
     std::mt19937        rgen(19690720);
 
@@ -263,7 +263,7 @@ tf03()
 }
 
 void
-stl_median_of_7(std::vector<float>& vdst, std::vector<float> const& vsrc)
+stl_median_of_7_sort(std::vector<float>& vdst, std::vector<float> const& vsrc)
 {
     float   tmp[7];
     size_t  ilast = vsrc.size();
@@ -314,7 +314,7 @@ stl_median_of_7(std::vector<float>& vdst, std::vector<float> const& vsrc)
 
 
 void
-stl_median_of_7_B(std::vector<float>& vdst, std::vector<float> const& vsrc)
+stl_median_of_7_nthe(std::vector<float>& vdst, std::vector<float> const& vsrc)
 {
     float   tmp[7];
     size_t  ilast = vsrc.size();
@@ -342,7 +342,7 @@ stl_median_of_7_B(std::vector<float>& vdst, std::vector<float> const& vsrc)
     for (size_t i = 3;  i < vsrc.size()-3;  ++i, ++src_f)
     {
         std::copy(src_f, src_f + 7, tmp_f);
-    std::nth_element(tmp_f, tmp_f+3, tmp_l);
+        std::nth_element(tmp_f, tmp_f+3, tmp_l);
         vdst[i] = tmp[3];
     }
 
@@ -384,7 +384,7 @@ tf04()
             vsrc[i] = i;
         }
 
-        stl_median_of_7_B(vdst_stl, vsrc);
+        stl_median_of_7_nthe(vdst_stl, vsrc);
         avx_median_of_7(vdst_avx.data(), vsrc.data(), vsrc.size());
 
         if (vdst_stl.back() != 99.0f)
@@ -412,11 +412,14 @@ void
 median_rep_driver
 (vector<float> const& vsrc, size_t reps, char const* name, vector<string>& results)
 {
-    vector<float>   vdst_avx, vdst_stl;     //- destination arrays
+    vector<float>   vdst_avx;               //- destination array
+    vector<float>   vdst_sort;              //- destination array
+    vector<float>   vdst_nthe;              //- destination array
     stopwatch       sw;                     //- for timing
     size_t const    ncnt = vsrc.size();     //- number of elements in source
     size_t const    xmin = 100'000'000u;    //- min value of (reps * ncnt)
-    int64_t         stl_time;               //- avg nanosecs per rep for STL approach
+    int64_t         stl_time_sort;          //- avg nanosecs per rep for STL approach
+    int64_t         stl_time_nthe;          //- avg nanosecs per rep for STL approach 2
     int64_t         avx_time;               //- avg nanosecs per rep for AVX approach
     double          npe;                    //- avg nanosecs per element
     char            resbuf[256];
@@ -432,21 +435,35 @@ median_rep_driver
     //  arrays to test for overruns.  Fill with flag values.
     //
     vdst_avx.resize(ncnt+1);
-    vdst_stl.resize(ncnt+1);
-    fill(begin(vdst_stl), end(vdst_stl), 99.0f);
+    vdst_sort.resize(ncnt + 1);
+    vdst_nthe.resize(ncnt + 1);
+    fill(begin(vdst_sort), end(vdst_sort), 99.0f);
+    fill(begin(vdst_nthe), end(vdst_nthe), 99.0f);
     fill(begin(vdst_avx), end(vdst_avx), 99.0f);
 
-    //- Compute the median using the simple STL-based algorithm.
+    //- Compute the median using the simple STL-based sort algorithm.
     //
     sw.start();
     for (size_t i = 0;  i < reps;  ++i)
     {
-        stl_median_of_7_B(vdst_stl, vsrc);
+        stl_median_of_7_sort(vdst_sort, vsrc);
     }
     sw.stop();
-    stl_time = sw.nanoseconds_elapsed()/reps;
-    npe       = (double) stl_time / (double) ncnt;
-    printf("stl %s %8ld %9ld %8.3f\n", name, ncnt, stl_time, npe);
+    stl_time_sort = sw.nanoseconds_elapsed() / reps;
+    npe           = (double) stl_time_sort / (double) ncnt;
+    printf("sort - %s %8ld %9ld %8.3f\n", name, ncnt, stl_time_sort, npe);
+
+    //- Compute the median using the simple STL-based nth_element algorithm.
+    //
+    sw.start();
+    for (size_t i = 0;  i < reps;  ++i)
+    {
+        stl_median_of_7_nthe(vdst_nthe, vsrc);
+    }
+    sw.stop();
+    stl_time_nthe = sw.nanoseconds_elapsed() / reps;
+    npe           = (double) stl_time_nthe / (double) ncnt;
+    printf("nthe - %s %8ld %9ld %8.3f\n", name, ncnt, stl_time_nthe, npe);
 
     //- Compute the median using the AVX512-based algorithm.
     //
@@ -458,13 +475,17 @@ median_rep_driver
     sw.stop();
     avx_time = sw.nanoseconds_elapsed()/reps;
     npe      = (double) avx_time / (double) ncnt;
-    printf("avx %s %8ld %9ld %8.3f\n", name, ncnt, avx_time, npe);
+    printf("avx  - %s %8ld %9ld %8.3f\n", name, ncnt, avx_time, npe);
 
     //- Check for overruns.
     //
-    if (vdst_stl.back() != 99.0f)
+    if (vdst_sort.back() != 99.0f)
     {
         printf("stl buffer overrun at size %ld\n", ncnt);
+    }
+    if (vdst_nthe.back() != 99.0f)
+    {
+        printf("stl_2 buffer overrun at size %ld\n", ncnt);
     }
     if (vdst_avx.back() != 99.0f)
     {
@@ -475,17 +496,22 @@ median_rep_driver
     //
     for (size_t i = 0;  i < ncnt;  ++i)
     {
-        if (vdst_avx[i] != vdst_stl[i])
+        if (vdst_avx[i] != vdst_sort[i])
         {
-            printf("(%s)) diff at index %ld: vdst_avx = %.1f  vdst_stl = %.1f\n",
-                   name, i, vdst_avx[i], vdst_stl[i]);
+            printf("(%s)) diff at index %ld: vdst_avx = %.1f  vdst_sort = %.1f\n",
+                   name, i, vdst_avx[i], vdst_sort[i]);
+        }
+        if (vdst_avx[i] != vdst_nthe[i])
+        {
+            printf("(%s)) diff at index %ld: vdst_avx = %.1f  vdst_nthe = %.1f\n",
+                   name, i, vdst_avx[i], vdst_nthe[i]);
         }
     }
     fflush(stdout);
 
-    double  speedup = (double) stl_time / (double) avx_time;
-    sprintf(resbuf, "%s, %lu, %ld, %ld, %.2f, %lu",
-            name, vsrc.size(), stl_time, avx_time, speedup, reps);
+    double  speedup = (double) stl_time_sort / (double) avx_time;
+    sprintf(resbuf, "%s, %lu, %ld, %ld, %ld, %.2f, %lu",
+            name, vsrc.size(), stl_time_sort, stl_time_nthe, avx_time, speedup, reps);
     results.push_back(string(resbuf));
 }
 
@@ -672,7 +698,7 @@ tf08()
     vector<float>  krnl;
     vector<string> results;
     size_t const        min_ncnt = 1000u;
-    size_t const        max_ncnt = 10'000'000u;
+    size_t const        max_ncnt = 100'000'000u;
     size_t const        tmg_reps = 1000;
     size_t const        ramp_mod = 1000;
 
@@ -694,13 +720,13 @@ tf08()
             {
                 vsrc[i] = i % ramp_mod;
             }
-            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "del-ramped", results);
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "delta-ramped", results);
 
             for (size_t i = 0;  i < vsrc.size();  ++i)
             {
                 vsrc[i] = random_values[i];
             }
-            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "del-random", results);
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "delta-random", results);
 
             fill(krnl.begin(), krnl.end(), 1.0f);
 
@@ -708,13 +734,13 @@ tf08()
             {
                 vsrc[i] = i % ramp_mod;
             }
-            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "sum-ramped", results);
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "integ-ramped", results);
 
             for (size_t i = 0;  i < vsrc.size();  ++i)
             {
                 vsrc[i] = random_values[i];
             }
-            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "sum-random", results);
+            conv_driver(krnl.data(), klen, vsrc.data(), ncnt, tmg_reps, "integ-random", results);
         }
         printf("\n");
         fflush(stdout);

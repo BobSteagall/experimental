@@ -176,7 +176,7 @@ template<int KernelSize, int KernelCenter>
 void
 avx_convolve(float* pdst, float const* pkrnl, float const* psrc, size_t len)
 {
-    //- The convolution kernel must have non-negative size and fit with a single reister.
+    //- The convolution kernel must have non-negative size and fit with a single register.
     //
     static_assert(KernelSize > 1  &&  KernelSize <= 16);
 

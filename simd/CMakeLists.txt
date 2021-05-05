@@ -5,16 +5,10 @@ include(CTest)
 
 ##- Include and library paths for Intel compiler run-time library.
 ##
-if(DEFINED $ENV{INTEL_RTL_INC_PATH})
-    set(RTL_INC_PATH $ENV{INTEL_RTL_INC_PATH})
-else()
-    set(RTL_INC_PATH /usr/local/intel/mkl/include)
-endif()
-
 if(DEFINED $ENV{INTEL_RTL_LIB_PATH})
     set(RTL_LIB_PATH $ENV{INTEL_RTL_LIB_PATH})
 else()
-    set(RTL_LIB_PATH /usr/local/intel/lib/intel64)
+    set(RTL_LIB_PATH /opt/tools/intel/2020.1.217/lib/intel64)
 endif()
 
 ##- Include and library paths for MKL
@@ -22,13 +16,13 @@ endif()
 if(DEFINED $ENV{INTEL_MKL_INC_PATH})
     set(MKL_INC_PATH $ENV{INTEL_MKL_INC_PATH})
 else()
-    set(MKL_INC_PATH /usr/local/intel/mkl/include)
+    set(MKL_INC_PATH /opt/tools/intel/2020.1.217/mkl/include)
 endif()
 
 if(DEFINED $ENV{INTEL_MKL_LIB_PATH})
     set(MKL_LIB_PATH $ENV{INTEL_MKL_LIB_PATH})
 else()
-    set(MKL_LIB_PATH /usr/local/intel/mkl/lib/intel64)
+    set(MKL_LIB_PATH /opt/tools/intel/2020.1.217/mkl/lib/intel64)
 endif()
 
 ##- Headers and source files
@@ -52,7 +46,6 @@ set(IncludeDirs
     include
     src
     ${MKL_INC_PATH}
-    ${RTL_INC_PATH}
 )
 
 set(LibraryDirs
