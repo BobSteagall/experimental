@@ -83,6 +83,11 @@ masked_load_from(float const* psrc, rf_512 fill, msk_512 mask)
     return _mm512_mask_loadu_ps(fill, (__mmask16) mask, psrc);
 }
 
+KEWB_FORCE_INLINE rf_512
+load_upper_element(rf_512 src)
+{
+    return _mm512_permutexvar_ps(_mm512_set1_epi32(15), src);
+};
 
 KEWB_FORCE_INLINE void
 store_to(float* pdst, rf_512 r)
@@ -275,7 +280,7 @@ in_place_shift_down_with_carry(rf_512& lo, rf_512& hi)
 
     constexpr uint32_t  zmask = (0xFFFFu >> (unsigned) S);
     constexpr uint32_t  bmask = ~zmask & 0xFFFFu;
-    ri_512             perm  = make_shift_permutation<S, bmask>();
+    ri_512              perm  = make_shift_permutation<S, bmask>();
 
     lo = _mm512_permutex2var_ps(lo, perm, hi);
     hi = _mm512_maskz_permutex2var_ps((__mmask16) zmask, hi, perm, hi);
@@ -284,6 +289,18 @@ in_place_shift_down_with_carry(rf_512& lo, rf_512& hi)
 
 //- Functions for arithmetic
 //
+KEWB_FORCE_INLINE rf_512
+add(rf_512 r0, rf_512 r1)
+{
+    return _mm512_add_ps(r0, r1);
+}
+
+KEWB_FORCE_INLINE rf_512
+subtract(rf_512 r0, rf_512 r1)
+{
+    return _mm512_sub_ps(r0, r1);
+}
+
 KEWB_FORCE_INLINE rf_512
 minimum(rf_512 r0, rf_512 r1)
 {
@@ -383,6 +400,7 @@ sort_two_lanes_of_7(rf_512 vals)
 
 void    avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len);
 void    avx_symm_convolve(float* pdst, float const* pkrnl, size_t klen, float const* psrc, size_t len);
+void    integrate(int32_t length, float* pdst, float const* psrc, int32_t width);
 
 }       //- simd namespace
 #endif  //- KEWB_SIMD_HPP_DEFINED

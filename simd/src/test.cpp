@@ -159,7 +159,8 @@ tf01()
                               8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f);
      msk_512 m  = make_bit_mask<0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1>();
 
-//    PRINT_REG(r2);
+    PRINT_REG(r2);
+    PRINT_REG(load_upper_element(r2));
 
     rf_512   r3 = d_sort_two_lanes_of_8(r2);
 //    PRINT_REG(r3);

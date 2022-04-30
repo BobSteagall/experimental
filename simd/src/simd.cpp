@@ -221,14 +221,6 @@ avx_convolve(float* pdst, float const* pkrnl, float const* psrc, size_t len)
         lo = shift_up_with_carry<WindowCenter>(prev, curr);
         hi = shift_up_with_carry<WindowCenter>(curr, next);
 
-        //- Slide the input data window upward by a register's work of values.  This
-        //  could also be done at the bottom of the loop, but experimentation has shown
-        //  that sliding the input data window here results in slightly better performance.
-        //
-        prev = curr;
-        curr = next;
-        next = load_from(psrc + 32);
-
         for (int k = 0;  k < KernelSize;  ++k)
         {
             sum = fused_multiply_add(kcoeff[k], lo, sum);   //- Update the accumulator
@@ -236,6 +228,14 @@ avx_convolve(float* pdst, float const* pkrnl, float const* psrc, size_t len)
         }
 
         store_to(pdst, sum);
+
+        //- Slide the input data window upward by a register's work of values.  This
+        //  could also be done at the bottom of the loop, but experimentation has shown
+        //  that sliding the input data window here results in slightly better performance.
+        //
+        prev = curr;
+        curr = next;
+        next = load_from(psrc + 32);
     }
 }
 
@@ -393,6 +393,39 @@ avx_median_of_7(float* pdst, float const* psrc, size_t const buf_len)
                 wrote = buf_len;
             }
         }
+    }
+}
+
+void
+integrate(int32_t length, float* pdst, float const* psrc, int32_t width)
+{
+    float   sum = 0.0f;
+
+    for (int32_t i = 0;  i < width;  ++i)
+    {
+        sum += psrc[i];
+    }
+
+    __m512  total = load_value(sum);
+    __m512  lo, hi, incr, base;
+
+    for (auto pEnd = psrc + length;  psrc < pEnd;  psrc += 16, pdst += 16)
+    {
+        lo = load_from(psrc);
+        hi = load_from(psrc + width);
+
+        incr = subtract(hi, lo);
+        base = load_upper_element(incr);
+
+        for (int i = 1;  i < 15;  ++i)
+        {
+            incr  = shift_up<1>(incr);
+            total = add(total, incr);
+        }
+
+        store_to(pdst, total);
+        total = load_upper_element(total);
+        total = add(total, base);
     }
 }
 
